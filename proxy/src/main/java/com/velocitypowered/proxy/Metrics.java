@@ -22,6 +22,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -122,15 +123,37 @@ public class Metrics {
       metrics.addCustomChart(new SimplePie("paperproxy_version",
           () -> server.getVersion().getVersion()));
       metrics.addCustomChart(new AdvancedPie("plugin_types", () -> {
-        // The proxy registers itself as plugin "velocity"; that one is not a real plugin.
+        final List<String> bungee = server.getBungeeLayer() == null ? List.of()
+            : server.getBungeeLayer().pluginNames();
+        // Not real plugins: the proxy itself, the Bungee layer, and Bungee plugins (which are
+        // registered as Velocity containers too and counted separately).
         final long velocityPlugins = server.getPluginManager().getPlugins().stream()
-            .filter(plugin -> !plugin.getDescription().getId().equals("velocity"))
+            .map(plugin -> plugin.getDescription())
+            .filter(d -> !d.getId().equals("velocity") && !d.getId().equals("paperproxy-bungee"))
+            .filter(d -> !bungee.contains(d.getName().orElse(d.getId())))
             .count();
-        return Map.of("Velocity", (int) velocityPlugins);
+        return Map.of("Velocity", (int) velocityPlugins, "BungeeCord", bungee.size());
       }));
-      metrics.addCustomChart(new AdvancedPie("forwarding_modes", () -> Map.of(
-          server.getConfiguration().getPlayerInfoForwardingMode().name()
-              .toLowerCase(Locale.ROOT), 1)));
+      metrics.addCustomChart(new AdvancedPie("bungee_plugins", () -> {
+        final Map<String, Integer> plugins = new HashMap<>();
+        if (server.getBungeeLayer() != null) {
+          for (final String name : server.getBungeeLayer().pluginNames()) {
+            plugins.put(name.length() > 32 ? name.substring(0, 32) : name, 1);
+          }
+        }
+        return plugins;
+      }));
+      metrics.addCustomChart(new AdvancedPie("forwarding_modes", () -> {
+        final Map<String, Integer> modes = new HashMap<>();
+        server.getAllServers().forEach(registered -> modes.merge(server.getForwarding()
+            .modeFor(registered.getServerInfo().getName()).name().toLowerCase(Locale.ROOT), 1,
+            Integer::sum));
+        return modes;
+      }));
+      metrics.addCustomChart(new SimplePie("auto_updater",
+          () -> server.getPaperProxyConfig().values().autoUpdate() ? "enabled" : "disabled"));
+      metrics.addCustomChart(new SimplePie("plugin_reload_used",
+          () -> server.getPluginReloader().changes() > 0 ? "yes" : "no"));
       metrics.addCustomChart(new AdvancedPie("client_versions", () -> {
         final Map<String, Integer> versions = new HashMap<>();
         server.getAllPlayers().forEach(player -> versions.merge(
