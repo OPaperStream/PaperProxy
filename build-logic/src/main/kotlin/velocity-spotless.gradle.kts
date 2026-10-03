@@ -13,7 +13,7 @@ extensions.configure<SpotlessExtension> {
             )
         } else {
             licenseHeaderFile(rootProject.file("HEADER.txt"))
-            targetExclude("**/java/net/paperstream/**")
+            targetExclude("**/java/net/paperstream/**", "**/java/net/md_5/**")
         }
         removeUnusedImports()
     }

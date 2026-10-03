@@ -107,6 +107,8 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.translation.MiniMessageTranslationStore;
 import net.kyori.adventure.translation.GlobalTranslator;
 import net.paperstream.paperproxy.PaperProxyBranding;
+import net.paperstream.paperproxy.bungee.BungeeLayerBootstrap;
+import net.paperstream.paperproxy.bungee.BungeeLayerHandle;
 import net.paperstream.paperproxy.command.PaperProxyCommand;
 import net.paperstream.paperproxy.messages.PaperProxyMessages;
 import org.apache.logging.log4j.LogManager;
@@ -179,6 +181,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
   private final VelocityChannelRegistrar channelRegistrar = new VelocityChannelRegistrar();
   private final ServerListPingHandler serverListPingHandler;
   private final PaperProxyMessages messages = new PaperProxyMessages(Path.of(""));
+  private volatile @Nullable BungeeLayerHandle bungeeLayer;
 
   VelocityServer(final ProxyOptions options) {
     pluginManager = new VelocityPluginManager(this);
@@ -480,6 +483,16 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
     }
 
     logger.info("Loaded {} plugins", pluginManager.getPlugins().size());
+
+    // BungeeCord plugins load after Velocity plugins, so Velocity plugin IDs win on conflicts.
+    BungeeLayerBootstrap.start(this, Path.of("plugins")).ifPresent(layer -> {
+      this.bungeeLayer = layer;
+      try {
+        layer.enable();
+      } catch (Exception e) {
+        logger.error("Couldn't enable the BungeeCord plugins", e);
+      }
+    });
   }
 
   public Bootstrap createBootstrap(@Nullable EventLoopGroup group) {
@@ -668,6 +681,15 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
         } catch (ExecutionException e) {
           timedOut = true;
           logger.error("Exception while tearing down player connections", e);
+        }
+
+        final BungeeLayerHandle layer = this.bungeeLayer;
+        if (layer != null) {
+          try {
+            layer.shutdown();
+          } catch (Exception e) {
+            logger.error("Exception while disabling BungeeCord plugins", e);
+          }
         }
 
         eventManager.fire(new ProxyShutdownEvent()).join();

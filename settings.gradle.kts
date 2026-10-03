@@ -32,6 +32,10 @@ sequenceOf(
     project(project).projectDir = file(it)
 }
 
+// PaperProxy: BungeeCord compatibility layer, loaded in its own classloader at runtime
+include(":paperproxy-bungee")
+project(":paperproxy-bungee").projectDir = file("bungee")
+
 // Include Configurate 3
 val deprecatedConfigurateModule = ":deprecated-configurate3"
 include(deprecatedConfigurateModule)

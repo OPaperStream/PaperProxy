@@ -35,6 +35,14 @@ tasks {
     shadowJar {
         archiveBaseName.set("paperproxy")
         archiveClassifier.set("")
+
+        // The BungeeCord layer ships as a nested jar, loaded in its own class loader on demand.
+        val bungeeLayer = project(":paperproxy-bungee").tasks.named("shadowJar")
+        dependsOn(bungeeLayer)
+        from(bungeeLayer.map { it.outputs.files.singleFile }) {
+            into("paperproxy")
+            rename { "bungee-layer.jar" }
+        }
         filesMatching("META-INF/org/apache/logging/log4j/core/config/plugins/**") {
             duplicatesStrategy = DuplicatesStrategy.INCLUDE
         }

@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import net.paperstream.paperproxy.bungee.BungeeLayerBootstrap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -103,6 +104,10 @@ public class VelocityPluginManager implements PluginManager {
     try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory,
         p -> p.toFile().isFile() && p.toString().endsWith(".jar"))) {
       for (Path path : stream) {
+        if (BungeeLayerBootstrap.isBungeePlugin(path)) {
+          // Loaded later by the BungeeCord compatibility layer.
+          continue;
+        }
         try {
           PluginDescription candidate = loader.loadCandidate(path);
 
