@@ -51,6 +51,8 @@ public final class HealthChecker {
 
   private final VelocityServer server;
   private final Map<String, Status> states = new ConcurrentHashMap<>();
+  private final Map<String, Integer> maxPlayers = new ConcurrentHashMap<>();
+  private final Map<String, Long> lastOffline = new ConcurrentHashMap<>();
   private volatile @Nullable ScheduledTask task;
   private volatile int interval;
 
@@ -106,6 +108,26 @@ public final class HealthChecker {
   }
 
   /**
+   * Returns the player limit a server reported in its last ping.
+   *
+   * @param name the server name
+   * @return the limit, or -1 if unknown
+   */
+  public int maxPlayers(final String name) {
+    return maxPlayers.getOrDefault(name.toLowerCase(Locale.ROOT), -1);
+  }
+
+  /**
+   * Returns when a server was last seen offline.
+   *
+   * @param name the server name
+   * @return unix millis, or 0 if never
+   */
+  public long lastOffline(final String name) {
+    return lastOffline.getOrDefault(name.toLowerCase(Locale.ROOT), 0L);
+  }
+
+  /**
    * Pings every server now.
    */
   public void checkAll() {
@@ -115,13 +137,22 @@ public final class HealthChecker {
         .build();
     for (final RegisteredServer registered : server.getAllServers()) {
       final String name = registered.getServerInfo().getName();
-      registered.ping(options).whenComplete((ping, error) ->
-          update(name, error == null ? Status.ONLINE : Status.OFFLINE));
+      registered.ping(options).whenComplete((ping, error) -> {
+        if (ping != null) {
+          ping.getPlayers().ifPresent(players ->
+              maxPlayers.put(name.toLowerCase(Locale.ROOT), players.getMax()));
+        }
+        update(name, error == null ? Status.ONLINE : Status.OFFLINE);
+      });
     }
     states.keySet().removeIf(name -> server.getServer(name).isEmpty());
+    maxPlayers.keySet().removeIf(name -> server.getServer(name).isEmpty());
   }
 
   private void update(final String name, final Status status) {
+    if (status == Status.OFFLINE) {
+      lastOffline.put(name.toLowerCase(Locale.ROOT), System.currentTimeMillis());
+    }
     final Status previous = states.put(name.toLowerCase(Locale.ROOT), status);
     if (previous == null || previous == Status.UNKNOWN || previous == status) {
       if (previous == null && status == Status.OFFLINE) {

@@ -78,6 +78,25 @@ paperproxy:
     offline: "{prefix}<red>{server} ist gerade offline. Bitte versuche es später erneut."
     down: "{prefix}<red>{server} ist offline gegangen."
     up: "{prefix}<green>{server} ist wieder online."
+  queue:
+    joined: "{prefix}<yellow>{server} ist voll oder offline.</yellow> <gray>Du bist <white>#{position}</white> von {total} in der Warteschlange und wirst automatisch verbunden. <white>/queue leave</white> zum Verlassen."
+    position: "<gray>Warteschlange für <white>{server}</white>: <yellow>#{position}</yellow> von {total}"
+    status: "{prefix}<gray>Du bist <white>#{position}</white> von {total} in der Warteschlange für <white>{server}</white>."
+    connecting: "{prefix}<green>Du bist dran! Verbinde mit <white>{server}</white>..."
+    left: "{prefix}<gray>Du hast die Warteschlange für <white>{server}</white> verlassen."
+    not-queued: "{prefix}<gray>Du bist in keiner Warteschlange."
+    timeout: "{prefix}<red>Du hast zu lange gewartet und die Warteschlange für {server} verlassen."
+    full: "{prefix}<red>{server} ist gerade voll."
+    rejoin: "{prefix}<green>{server} ist wieder online. Du wirst zurückgeschickt..."
+  hub:
+    already: "{prefix}<gray>Du bist schon da."
+    no-server: "{prefix}<red>Gerade ist kein Server verfügbar."
+  antibot:
+    attack-kick: "<red>Der Server wird gerade von Bots angegriffen.</red>\n<gray>Bitte versuche es in einer Minute erneut."
+    blocked-name: "<red>Dieser Name ist hier nicht erlaubt."
+    too-many-accounts: "<red>Zu viele Accounts von deiner Verbindung</red> <gray>(höchstens {max})."
+    attack-start: "{prefix}<red>Bot-Angriff erkannt. Vorerst können nur bekannte Spieler joinen."
+    attack-end: "{prefix}<green>Bot-Angriff vorbei. Alle können wieder joinen."
   alert:
     format: "<dark_gray>[<red>Alarm</red>]</dark_gray> <white>{message}"
   find:

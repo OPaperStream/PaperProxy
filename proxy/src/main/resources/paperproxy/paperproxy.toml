@@ -7,7 +7,7 @@
 # Forwarding mode per server, overriding player-info-forwarding-mode from velocity.toml.
 # Modes: "modern", "paperguard", "bungeeguard", "legacy", "none".
 #   modern      Paper 1.13+ built in, recommended
-#   paperguard  signed and replay-proof, needs PaperProxy-Bridge on the backend
+#   paperguard  signed and replay-proof, needs the PaperGuard plugin on the backend
 #   bungeeguard needs the BungeeGuard plugin on the backend
 #   legacy      plain BungeeCord forwarding, only safe behind a strict firewall
 [forwarding.servers]
@@ -37,6 +37,54 @@ enabled = false
 # Servers in maintenance (players without bypass cannot connect to them).
 servers = []
 whitelist = []
+
+[groups]
+# Servers that act as one. Players are sent to the member with the fewest players; full or
+# offline members are skipped. Use a member name in velocity.toml (try, forced-hosts) and the
+# group decides which member is used.
+# lobby = ["lobby-1", "lobby-2"]
+
+[queue]
+# When a server is full or offline, players wait in a queue and are connected automatically
+# as soon as there is room. Higher paperproxy.queue.priority.<0-100> goes first,
+# paperproxy.queue.bypass joins full servers directly.
+enabled = true
+# Seconds between queue updates and position messages.
+interval-seconds = 2
+# Players leave the queue after this many minutes.
+timeout-minutes = 10
+# Players moved away because their server restarted are sent back once it is online again.
+rejoin-after-restart = true
+
+[hub-command]
+# /hub and /lobby send players to this server or group. Empty disables the command.
+target = ""
+aliases = ["hub", "lobby"]
+
+[antibot]
+# Protection against bot floods.
+enabled = true
+# More new connections per second than this switch on attack mode.
+attack-threshold = 30
+# Attack mode ends this many seconds after the last burst.
+attack-duration-seconds = 60
+# During an attack only players who joined before may connect (kept in known-players.txt).
+attack-known-only = true
+# Players online from the same IP. 0 = unlimited. paperproxy.antibot.bypass skips the limit.
+max-accounts-per-ip = 0
+# Names matching this regular expression are refused, e.g. "^(bot|test)_\\d+$". Empty = off.
+blocked-name-pattern = ""
+
+[metrics]
+# Prometheus endpoint with players, servers, queues and memory, at http://<bind>:<port>/metrics.
+enabled = false
+bind = "127.0.0.1"
+port = 9225
+
+[shutdown]
+# When the proxy stops, send players to another proxy instead of kicking them
+# (Minecraft 1.20.5+ clients), e.g. "play2.example.net:25565". Empty = kick as usual.
+transfer-to = ""
 
 [ping-cache]
 # Server list responses are reused for this many seconds. 0 disables the cache.

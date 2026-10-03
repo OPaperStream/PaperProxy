@@ -78,6 +78,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.net.http.HttpClient;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -117,10 +118,14 @@ import net.paperstream.paperproxy.command.PaperProxyCommand;
 import net.paperstream.paperproxy.config.PaperProxyConfig;
 import net.paperstream.paperproxy.forwarding.Forwarding;
 import net.paperstream.paperproxy.messages.PaperProxyMessages;
+import net.paperstream.paperproxy.network.AntiBot;
 import net.paperstream.paperproxy.network.HealthChecker;
+import net.paperstream.paperproxy.network.MetricsEndpoint;
 import net.paperstream.paperproxy.network.Motd;
 import net.paperstream.paperproxy.network.NetworkRules;
 import net.paperstream.paperproxy.network.PingCache;
+import net.paperstream.paperproxy.network.ServerGroups;
+import net.paperstream.paperproxy.network.ServerQueue;
 import net.paperstream.paperproxy.plugin.PluginReloader;
 import net.paperstream.paperproxy.update.UpdateChecker;
 import org.apache.logging.log4j.LogManager;
@@ -201,6 +206,10 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
       () -> paperProxyConfig.values().pingCacheSeconds());
   private final HealthChecker healthChecker = new HealthChecker(this);
   private final NetworkRules networkRules = new NetworkRules(this);
+  private final ServerGroups serverGroups = new ServerGroups(this);
+  private final ServerQueue serverQueue = new ServerQueue(this);
+  private final AntiBot antiBot = new AntiBot(this, Path.of(""));
+  private final MetricsEndpoint metricsEndpoint = new MetricsEndpoint(this);
   private final Motd motd = new Motd(Path.of(""));
   private final PluginReloader pluginReloader = new PluginReloader(this);
   private final UpdateChecker updateChecker = new UpdateChecker(this);
@@ -230,6 +239,8 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
     motd.load();
     pingCache.clear();
     healthChecker.start();
+    serverQueue.start();
+    metricsEndpoint.apply();
     if (forwarding.paperGuardInUse()) {
       try {
         forwarding.loadSecret();
@@ -318,6 +329,50 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
    */
   public NetworkRules getNetworkRules() {
     return networkRules;
+  }
+
+  private @Nullable InetSocketAddress transferTarget() {
+    final String target = paperProxyConfig.values().transferOnShutdown();
+    if (target.isEmpty()) {
+      return null;
+    }
+    try {
+      final InetSocketAddress parsed = AddressUtil.parseAddress(target);
+      logger.info("Sending players to {} instead of disconnecting them", target);
+      // Unresolved, so the client gets the host exactly as configured.
+      return InetSocketAddress.createUnresolved(
+          URI.create("tcp://" + target).getHost(), parsed.getPort());
+    } catch (IllegalArgumentException | IllegalStateException e) {
+      logger.error("shutdown.transfer-to '{}' is not a valid host:port", target);
+      return null;
+    }
+  }
+
+  /**
+   * Returns the bot protection.
+   *
+   * @return the protection
+   */
+  public AntiBot getAntiBot() {
+    return antiBot;
+  }
+
+  /**
+   * Returns the server groups.
+   *
+   * @return the groups
+   */
+  public ServerGroups getServerGroups() {
+    return serverGroups;
+  }
+
+  /**
+   * Returns the queues for full or offline servers.
+   *
+   * @return the queue
+   */
+  public ServerQueue getServerQueue() {
+    return serverQueue;
   }
 
   /**
@@ -455,6 +510,9 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
     channelRegistrar.register(BridgeReports.CHANNEL);
     eventManager.register(VelocityVirtualPlugin.INSTANCE, bridgeReports);
     eventManager.register(VelocityVirtualPlugin.INSTANCE, networkRules);
+    eventManager.register(VelocityVirtualPlugin.INSTANCE, serverQueue);
+    eventManager.register(VelocityVirtualPlugin.INSTANCE, antiBot);
+    antiBot.start();
     eventManager.register(VelocityVirtualPlugin.INSTANCE, motd);
     eventManager.register(VelocityVirtualPlugin.INSTANCE, updateChecker);
     updateChecker.start();
@@ -801,8 +859,15 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
       }
 
       ImmutableList<ConnectedPlayer> players = ImmutableList.copyOf(connectionsByUuid.values());
+      final InetSocketAddress transferTo = transferTarget();
       for (ConnectedPlayer player : players) {
-        player.disconnect(reason);
+        if (transferTo != null
+            && player.getProtocolVersion().noLessThan(ProtocolVersion.MINECRAFT_1_20_5)) {
+          // PaperProxy: hand the player to another proxy instead of kicking them.
+          player.transferToHost(transferTo);
+        } else {
+          player.disconnect(reason);
+        }
       }
 
       try {
@@ -834,6 +899,8 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
         }
 
         eventManager.fire(new ProxyShutdownEvent()).join();
+        antiBot.save();
+        metricsEndpoint.stop();
 
         timedOut = !scheduler.shutdown() || timedOut;
 

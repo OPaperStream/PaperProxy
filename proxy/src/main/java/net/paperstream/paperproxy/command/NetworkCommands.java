@@ -25,15 +25,19 @@ import com.velocitypowered.api.command.BrigadierCommand;
 import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.permission.Tristate;
 import com.velocitypowered.api.proxy.Player;
+import com.velocitypowered.api.proxy.server.RegisteredServer;
 import com.velocitypowered.proxy.VelocityServer;
 import com.velocitypowered.proxy.plugin.virtual.VelocityVirtualPlugin;
+import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.translation.Argument;
 
 /**
- * The BungeeCord commands Velocity is missing: {@code /alert}, {@code /find} and {@code /ip}.
+ * The BungeeCord commands Velocity is missing: {@code /alert}, {@code /find} and {@code /ip},
+ * plus {@code /queue} and {@code /hub}.
  */
 public final class NetworkCommands {
 
@@ -48,9 +52,9 @@ public final class NetworkCommands {
    */
   public static void register(final VelocityServer server) {
     final SuggestionProvider<CommandSource> players = (ctx, builder) -> {
-      final String prefix = builder.getRemaining().toLowerCase(java.util.Locale.ROOT);
+      final String prefix = builder.getRemaining().toLowerCase(Locale.ROOT);
       server.getAllPlayers().stream().map(Player::getUsername)
-          .filter(name -> name.toLowerCase(java.util.Locale.ROOT).startsWith(prefix))
+          .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(prefix))
           .forEach(builder::suggest);
       return builder.buildFuture();
     };
@@ -90,6 +94,72 @@ public final class NetworkCommands {
                       .getHostAddress())));
               return Command.SINGLE_SUCCESS;
             }))));
+
+    registerQueueAndHub(server);
+  }
+
+  private static void registerQueueAndHub(final VelocityServer server) {
+    registerCommand(server, new BrigadierCommand(BrigadierCommand.literalArgumentBuilder("queue")
+        .requires(source -> source instanceof Player)
+        .executes(ctx -> {
+          final Player player = (Player) ctx.getSource();
+          final Optional<Object[]> position = server.getServerQueue()
+              .position(player.getUniqueId());
+          if (position.isEmpty()) {
+            player.sendMessage(Component.translatable("paperproxy.queue.not-queued"));
+            return 0;
+          }
+          player.sendMessage(Component.translatable("paperproxy.queue.status",
+              Argument.string("server", String.valueOf(position.get()[0])),
+              Argument.string("position", String.valueOf(position.get()[1])),
+              Argument.string("total", String.valueOf(position.get()[2]))));
+          return Command.SINGLE_SUCCESS;
+        })
+        .then(BrigadierCommand.literalArgumentBuilder("leave").executes(ctx -> {
+          final Player player = (Player) ctx.getSource();
+          final String left = server.getServerQueue().leave(player.getUniqueId());
+          player.sendMessage(left == null
+              ? Component.translatable("paperproxy.queue.not-queued")
+              : Component.translatable("paperproxy.queue.left", Argument.string("server", left)));
+          return Command.SINGLE_SUCCESS;
+        }))));
+
+    final List<String> aliases = server.getPaperProxyConfig().values().hubAliases();
+    if (aliases.isEmpty()) {
+      return;
+    }
+    final BrigadierCommand hub = new BrigadierCommand(BrigadierCommand
+        .literalArgumentBuilder(aliases.get(0))
+        .requires(source -> source instanceof Player
+            && !server.getPaperProxyConfig().values().hubTarget().isEmpty())
+        .executes(ctx -> hub(server, (Player) ctx.getSource())));
+    server.getCommandManager().register(server.getCommandManager().metaBuilder(hub)
+        .aliases(aliases.subList(1, aliases.size()).toArray(String[]::new))
+        .plugin(VelocityVirtualPlugin.INSTANCE).build(), hub);
+  }
+
+  private static int hub(final VelocityServer server, final Player player) {
+    final String target = server.getPaperProxyConfig().values().hubTarget();
+    final String current = player.getCurrentServer()
+        .map(c -> c.getServerInfo().getName().toLowerCase(Locale.ROOT)).orElse("");
+    final boolean inGroup = server.getServerGroups().members(target).contains(current);
+    if (current.equals(target) || inGroup) {
+      player.sendMessage(Component.translatable("paperproxy.hub.already"));
+      return 0;
+    }
+    final Optional<RegisteredServer> best = server.getServerGroups().best(player, target, null);
+    if (best.isPresent()) {
+      player.createConnectionRequest(best.get()).fireAndForget();
+      return Command.SINGLE_SUCCESS;
+    }
+    final Optional<RegisteredServer> single = server.getServer(target);
+    if (single.isPresent() && server.getPaperProxyConfig().values().queue().enabled()
+        && server.getNetworkRules().hardProblem(player, single.get()) == null) {
+      server.getServerQueue().enqueue(player, single.get());
+      return Command.SINGLE_SUCCESS;
+    }
+    player.sendMessage(Component.translatable("paperproxy.hub.no-server"));
+    return 0;
   }
 
   private static int find(final VelocityServer server, final CommandContext<CommandSource> ctx) {

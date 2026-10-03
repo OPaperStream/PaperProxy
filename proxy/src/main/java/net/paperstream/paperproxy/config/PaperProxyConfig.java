@@ -67,6 +67,13 @@ public final class PaperProxyConfig {
    * @param updateChannel release, beta or alpha
    * @param autoUpdate whether verified updates are downloaded
    * @param autoUpdateAllowMajor whether major updates are installed automatically
+   * @param groups server groups, group name to member names (all lower case)
+   * @param queue queue settings
+   * @param hubTarget server or group for /hub, empty if disabled
+   * @param hubAliases command names for the hub command
+   * @param antiBot bot protection settings
+   * @param metrics Prometheus endpoint settings
+   * @param transferOnShutdown host:port to send players to when the proxy stops, or empty
    */
   public record Values(Map<String, PlayerInfoForwarding> forwarding, int paperGuardMaxAgeSeconds,
                        Map<String, VersionRange> versions, boolean healthCheck,
@@ -75,13 +82,65 @@ public final class PaperProxyConfig {
                        Set<String> maintenanceWhitelist, int pingCacheSeconds, int watchdogMillis,
                        boolean reloadRequiresConfirm, Set<String> reloadBlocked,
                        boolean updateCheck, String updateChannel, boolean autoUpdate,
-                       boolean autoUpdateAllowMajor) {
+                       boolean autoUpdateAllowMajor, Map<String, List<String>> groups,
+                       Queue queue, String hubTarget, List<String> hubAliases,
+                       AntiBot antiBot, Metrics metrics, String transferOnShutdown) {
 
     static Values defaults() {
       return new Values(Map.of(), 10, Map.of(), true, 10, "paperproxy.notify.health", false,
           Set.of(), Set.of(), 5, 500, true,
           Set.of("viaversion", "viabackwards", "viarewind", "luckperms", "geyser", "floodgate"),
-          true, "release", false, false);
+          true, "release", false, false, Map.of(), Queue.defaults(), "",
+          List.of("hub", "lobby"), AntiBot.defaults(), Metrics.defaults(), "");
+    }
+  }
+
+  /**
+   * Bot protection settings.
+   *
+   * @param enabled whether the protection is active
+   * @param attackThreshold new connections per second that start attack mode
+   * @param attackDurationSeconds how long attack mode lasts after the last burst
+   * @param attackKnownOnly whether only known players may join during an attack
+   * @param maxAccountsPerIp players online from one IP, 0 = unlimited
+   * @param blockedNamePattern regular expression for refused names, empty = none
+   */
+  public record AntiBot(boolean enabled, int attackThreshold, int attackDurationSeconds,
+                        boolean attackKnownOnly, int maxAccountsPerIp,
+                        String blockedNamePattern) {
+
+    static AntiBot defaults() {
+      return new AntiBot(true, 30, 60, true, 0, "");
+    }
+  }
+
+  /**
+   * Prometheus endpoint settings.
+   *
+   * @param enabled whether the endpoint runs
+   * @param bind address to listen on
+   * @param port port to listen on
+   */
+  public record Metrics(boolean enabled, String bind, int port) {
+
+    static Metrics defaults() {
+      return new Metrics(false, "127.0.0.1", 9225);
+    }
+  }
+
+  /**
+   * Queue settings.
+   *
+   * @param enabled whether full or offline servers get a queue
+   * @param intervalSeconds seconds between queue updates
+   * @param timeoutMinutes minutes after which a player leaves the queue
+   * @param rejoinAfterRestart whether players are sent back after a server restart
+   */
+  public record Queue(boolean enabled, int intervalSeconds, int timeoutMinutes,
+                      boolean rejoinAfterRestart) {
+
+    static Queue defaults() {
+      return new Queue(true, 2, 10, true);
     }
   }
 
@@ -195,6 +254,55 @@ public final class PaperProxyConfig {
       }
     }
 
+    final Map<String, List<String>> groups = new LinkedHashMap<>();
+    final Object groupSection = config.get("groups");
+    if (groupSection instanceof Config section) {
+      for (final Config.Entry entry : section.entrySet()) {
+        if (!(entry.getValue() instanceof List<?>)) {
+          errors.add("groups." + entry.getKey() + ": must be a list of server names, e.g. "
+              + "[\"lobby-1\", \"lobby-2\"]");
+          continue;
+        }
+        final List<String> members = new ArrayList<>(lowerSet(entry.getValue()));
+        if (members.isEmpty()) {
+          errors.add("groups." + entry.getKey() + ": has no servers");
+          continue;
+        }
+        groups.put(entry.getKey().toLowerCase(Locale.ROOT), List.copyOf(members));
+      }
+    }
+    final Queue q = Queue.defaults();
+    final Queue queue = new Queue(
+        bool(config, "queue.enabled", q.enabled(), errors),
+        integer(config, "queue.interval-seconds", q.intervalSeconds(), 1, 60, errors),
+        integer(config, "queue.timeout-minutes", q.timeoutMinutes(), 1, 1440, errors),
+        bool(config, "queue.rejoin-after-restart", q.rejoinAfterRestart(), errors));
+    final AntiBot a = AntiBot.defaults();
+    String namePattern = string(config, "antibot.blocked-name-pattern", a.blockedNamePattern(),
+        errors);
+    try {
+      java.util.regex.Pattern.compile(namePattern);
+    } catch (final java.util.regex.PatternSyntaxException e) {
+      errors.add("antibot.blocked-name-pattern: not a valid regular expression ("
+          + e.getDescription() + ")");
+      namePattern = "";
+    }
+    final AntiBot antiBot = new AntiBot(
+        bool(config, "antibot.enabled", a.enabled(), errors),
+        integer(config, "antibot.attack-threshold", a.attackThreshold(), 1, 100_000, errors),
+        integer(config, "antibot.attack-duration-seconds", a.attackDurationSeconds(), 1, 3600,
+            errors),
+        bool(config, "antibot.attack-known-only", a.attackKnownOnly(), errors),
+        integer(config, "antibot.max-accounts-per-ip", a.maxAccountsPerIp(), 0, 1000, errors),
+        namePattern);
+    final Metrics m = Metrics.defaults();
+    final Metrics metrics = new Metrics(
+        bool(config, "metrics.enabled", m.enabled(), errors),
+        string(config, "metrics.bind", m.bind(), errors),
+        integer(config, "metrics.port", m.port(), 1, 65535, errors));
+    final List<String> hubAliases = config.get("hub-command.aliases") == null
+        ? d.hubAliases() : List.copyOf(lowerSet(config.get("hub-command.aliases")));
+
     final String channel = string(config, "updates.channel", d.updateChannel(), errors)
         .toLowerCase(Locale.ROOT);
     if (!List.of("release", "beta", "alpha").contains(channel)) {
@@ -219,7 +327,12 @@ public final class PaperProxyConfig {
         bool(config, "updates.check", d.updateCheck(), errors),
         List.of("release", "beta", "alpha").contains(channel) ? channel : d.updateChannel(),
         bool(config, "auto-update.enabled", d.autoUpdate(), errors),
-        bool(config, "auto-update.allow-major", d.autoUpdateAllowMajor(), errors));
+        bool(config, "auto-update.allow-major", d.autoUpdateAllowMajor(), errors),
+        Map.copyOf(groups), queue,
+        string(config, "hub-command.target", d.hubTarget(), errors).toLowerCase(Locale.ROOT)
+            .trim(),
+        hubAliases, antiBot, metrics,
+        string(config, "shutdown.transfer-to", d.transferOnShutdown(), errors).trim());
   }
 
   private static int integer(final Config config, final String path, final int def,

@@ -29,9 +29,10 @@ import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
 import com.velocitypowered.api.proxy.server.ServerPing;
 import com.velocitypowered.proxy.VelocityServer;
-import java.util.List;
+import com.velocitypowered.proxy.plugin.virtual.VelocityVirtualPlugin;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.translation.Argument;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
@@ -89,18 +90,47 @@ public final class NetworkRules {
   public void onChooseInitialServer(final PlayerChooseInitialServerEvent event) {
     final Player player = event.getPlayer();
     final RegisteredServer chosen = event.getInitialServer().orElse(null);
-    if (chosen != null && problem(player, chosen) == null) {
-      return;
-    }
-    final List<String> order = server.getConfiguration().getAttemptConnectionOrder();
-    for (final String name : order) {
-      final Optional<RegisteredServer> candidate = server.getServer(name);
-      if (candidate.isPresent() && problem(player, candidate.get()) == null) {
-        event.setInitialServer(candidate.get());
+    if (chosen != null) {
+      // A group member stands for its whole group: use the emptiest usable member.
+      final Optional<RegisteredServer> best = server.getServerGroups()
+          .best(player, chosen.getServerInfo().getName(), null);
+      if (best.isPresent()) {
+        event.setInitialServer(best.get());
         return;
       }
+      if (hardProblem(player, chosen) == null && values().queue().enabled()) {
+        // Full or offline: the player waits on another server and is queued for this one.
+        final RegisteredServer fallback = fallback(player, chosen).orElse(null);
+        if (fallback != null) {
+          event.setInitialServer(fallback);
+          queueLater(player, chosen);
+          return;
+        }
+      }
     }
+    fallback(player, chosen).ifPresent(event::setInitialServer);
     // Nothing better found: keep the original choice and let the connect check explain why.
+  }
+
+  private Optional<RegisteredServer> fallback(final Player player,
+                                              final @Nullable RegisteredServer exclude) {
+    for (final String name : server.getConfiguration().getAttemptConnectionOrder()) {
+      final Optional<RegisteredServer> candidate = server.getServerGroups()
+          .best(player, name, exclude);
+      if (candidate.isPresent()) {
+        return candidate;
+      }
+    }
+    return Optional.empty();
+  }
+
+  private void queueLater(final Player player, final RegisteredServer target) {
+    // Messages sent before the player is on a server are lost, so wait a moment.
+    server.getScheduler().buildTask(VelocityVirtualPlugin.INSTANCE, () -> {
+      if (player.isActive()) {
+        server.getServerQueue().enqueue(player, target);
+      }
+    }).delay(2, TimeUnit.SECONDS).schedule();
   }
 
   /**
@@ -114,15 +144,53 @@ public final class NetworkRules {
     if (target == null) {
       return;
     }
-    final Component problem = problem(event.getPlayer(), target);
-    if (problem == null) {
+    final Player player = event.getPlayer();
+    final boolean switching = player.getCurrentServer().isPresent();
+    final Component hard = hardProblem(player, target);
+    if (hard != null) {
+      deny(event, hard);
       return;
     }
+    final String name = target.getServerInfo().getName();
+    final boolean offline = !server.getHealthChecker().isOnline(name);
+    final boolean full = server.getServerGroups().isFull(player, target);
+    if (!offline && !full) {
+      return;
+    }
+    if (server.getServerGroups().groupOf(name) != null) {
+      final Optional<RegisteredServer> other = server.getServerGroups().best(player, name, target);
+      if (other.isPresent()) {
+        event.setResult(ServerPreConnectEvent.ServerResult.allowed(other.get()));
+        return;
+      }
+    }
+    final Component reason = offline
+        ? Component.translatable("paperproxy.health.offline", Argument.string("server", name))
+        : Component.translatable("paperproxy.queue.full", Argument.string("server", name));
+    if (!values().queue().enabled()) {
+      deny(event, reason);
+      return;
+    }
+    if (switching) {
+      event.setResult(ServerPreConnectEvent.ServerResult.denied());
+      server.getServerQueue().enqueue(player, target);
+      return;
+    }
+    final Optional<RegisteredServer> fallback = fallback(player, target);
+    if (fallback.isPresent()) {
+      event.setResult(ServerPreConnectEvent.ServerResult.allowed(fallback.get()));
+      queueLater(player, target);
+    } else {
+      deny(event, reason);
+    }
+  }
+
+  private static void deny(final ServerPreConnectEvent event, final Component reason) {
     event.setResult(ServerPreConnectEvent.ServerResult.denied());
     if (event.getPlayer().getCurrentServer().isPresent()) {
-      event.getPlayer().sendMessage(problem);
+      event.getPlayer().sendMessage(reason);
     } else {
-      event.getPlayer().disconnect(problem);
+      event.getPlayer().disconnect(reason);
     }
   }
 
@@ -156,6 +224,26 @@ public final class NetworkRules {
    * @return the message, or null if the player may connect
    */
   public @Nullable Component problem(final Player player, final RegisteredServer target) {
+    final Component hard = hardProblem(player, target);
+    if (hard != null) {
+      return hard;
+    }
+    final String name = target.getServerInfo().getName();
+    if (!server.getHealthChecker().isOnline(name)) {
+      return Component.translatable("paperproxy.health.offline", Argument.string("server", name));
+    }
+    return null;
+  }
+
+  /**
+   * Explains why a player may never use a server right now, ignoring whether it is online:
+   * maintenance and version rules.
+   *
+   * @param player the player
+   * @param target the server
+   * @return the message, or null
+   */
+  public @Nullable Component hardProblem(final Player player, final RegisteredServer target) {
     final String name = target.getServerInfo().getName();
     final PaperProxyConfig.Values values = values();
     if (values.maintenanceServers().contains(name.toLowerCase(Locale.ROOT))
@@ -172,9 +260,6 @@ public final class NetworkRules {
           Argument.string("server", name),
           Argument.string("versions", range.text()),
           Argument.string("client_version", version.getMostRecentSupportedVersion()));
-    }
-    if (!server.getHealthChecker().isOnline(name)) {
-      return Component.translatable("paperproxy.health.offline", Argument.string("server", name));
     }
     return null;
   }
