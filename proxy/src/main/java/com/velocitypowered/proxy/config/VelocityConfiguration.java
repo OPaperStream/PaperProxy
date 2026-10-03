@@ -66,7 +66,7 @@ public class VelocityConfiguration implements ProxyConfig {
   @Expose
   private String bind = "0.0.0.0:25565";
   @Expose
-  private String motd = "<aqua>A Velocity Server";
+  private String motd = "<aqua>A PaperProxy Server";
   @Expose
   private int showMaxPlayers = 500;
   @Expose
@@ -548,7 +548,7 @@ public class VelocityConfiguration implements ProxyConfig {
         }
       }
       final byte[] forwardingSecret = forwardingSecretString.getBytes(StandardCharsets.UTF_8);
-      final String motd = config.getOrElse("motd", "<#09add3>A Velocity Server");
+      final String motd = config.getOrElse("motd", "<#09add3>A PaperProxy Server");
 
       // Read the rest of the config
       final CommentedConfig serversConfig = config.get("servers");
