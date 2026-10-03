@@ -17,7 +17,9 @@
 
 package com.velocitypowered.proxy;
 
+import com.velocitypowered.api.event.connection.PostLoginEvent;
 import com.velocitypowered.proxy.config.VelocityConfiguration;
+import com.velocitypowered.proxy.plugin.virtual.VelocityVirtualPlugin;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -25,6 +27,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -154,10 +157,21 @@ public class Metrics {
           () -> server.getPaperProxyConfig().values().autoUpdate() ? "enabled" : "disabled"));
       metrics.addCustomChart(new SimplePie("plugin_reload_used",
           () -> server.getPluginReloader().changes() > 0 ? "yes" : "no"));
+      // Counts every join since the last submission, so the chart is not empty when nobody
+      // happens to be online at the moment bStats sends its data.
+      final Map<String, Integer> joins = new ConcurrentHashMap<>();
+      server.getEventManager().register(VelocityVirtualPlugin.INSTANCE, PostLoginEvent.class,
+          event -> joins.merge(
+              event.getPlayer().getProtocolVersion().getMostRecentSupportedVersion(), 1,
+              Integer::sum));
       metrics.addCustomChart(new AdvancedPie("client_versions", () -> {
         final Map<String, Integer> versions = new HashMap<>();
-        server.getAllPlayers().forEach(player -> versions.merge(
-            player.getProtocolVersion().getMostRecentSupportedVersion(), 1, Integer::sum));
+        for (final String version : List.copyOf(joins.keySet())) {
+          versions.put(version, joins.remove(version));
+        }
+        // Players who stay online for longer than one interval still count.
+        server.getAllPlayers().forEach(player -> versions.putIfAbsent(
+            player.getProtocolVersion().getMostRecentSupportedVersion(), 1));
         return versions;
       }));
       metrics.addCustomChart(new SimplePie("via_on_proxy",
