@@ -118,6 +118,12 @@ Requires Java 25 (same as current Velocity).
 - Offline variant with everything inside: `proxy/build/libs/paperproxy-<version>-full.jar`
 - Backend plugin: `bridge/build/libs/PaperProxy-Bridge-<version>.jar`
 
+## Pterodactyl
+
+Import [`pterodactyl/egg-paperproxy.json`](pterodactyl/egg-paperproxy.json) in your panel
+(Admin, Nests, Import Egg). It installs the latest release (or a chosen tag), checks the
+SHA-512 checksum and can use the offline `-full` jar.
+
 ## Metrics
 
 PaperProxy reports anonymous usage statistics to
