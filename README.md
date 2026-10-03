@@ -9,7 +9,11 @@ PaperProxy is a Minecraft proxy that runs **Velocity plugins** and **BungeeCord/
 plugins** side by side on one proxy, and fixes the things that annoy server owners about
 Velocity and Waterfall today.
 
-**Status: early development, no release yet.** Everything below is implemented and tested on
+**Will my plugins work?** Check them with the
+[PaperProxy Plugin Checker](https://opaperstream.github.io/PaperProxy/) (runs in your browser,
+nothing is uploaded).
+
+**Status: early development.** Everything below is implemented and tested on
 a test network, but not yet in production use. Expect rough edges.
 
 ## Features
