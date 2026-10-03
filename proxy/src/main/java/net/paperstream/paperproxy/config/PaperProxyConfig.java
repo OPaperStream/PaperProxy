@@ -118,7 +118,7 @@ public final class PaperProxyConfig {
           Files.copy(in, file);
         }
       }
-      try (CommentedFileConfig config = CommentedFileConfig.builder(file).preserveInsertionOrder()
+      try (CommentedFileConfig config = CommentedFileConfig.builder(file).preserveInsertionOrder().sync()
           .build()) {
         config.load();
         final List<String> errors = new ArrayList<>();
@@ -144,7 +144,7 @@ public final class PaperProxyConfig {
    */
   public synchronized void setMaintenance(final @Nullable String server, final boolean enabled)
       throws IOException {
-    try (CommentedFileConfig config = CommentedFileConfig.builder(file).preserveInsertionOrder()
+    try (CommentedFileConfig config = CommentedFileConfig.builder(file).preserveInsertionOrder().sync()
         .build()) {
       config.load();
       if (server == null) {

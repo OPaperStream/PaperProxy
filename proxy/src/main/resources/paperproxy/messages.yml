@@ -76,3 +76,26 @@ paperproxy:
     key: "<gray>PaperGuard key for <white>{server}</white>:</gray>\n<yellow>{key}</yellow>\n<gray>Put it into <white>plugins/PaperProxy-Bridge/config.yml</white> on that server, with <white>server-name: {server}</white>. Keep it secret."
     rotate-confirm: "<red>This replaces the PaperGuard secret. Every backend needs its new key afterwards and rejects logins until then.</red> <gray>Type <white>paperproxy paperguard rotate confirm</white> to continue."
     rotated: "<green>New PaperGuard secret created.</green> <gray>Get the new keys with <white>paperproxy paperguard key [server]</white>."
+  maintenance:
+    kick: "<red>The network is in maintenance.</red>\n<gray>Please come back later."
+    server: "{prefix}<red>{server} is in maintenance right now."
+    motd: "<red>Maintenance</red>\n<gray>We are back soon."
+    version-label: "Maintenance"
+    status: "{prefix}<gray>Network maintenance: <white>{state}</white>, servers in maintenance: <white>{servers}"
+    enabled: "{prefix}<yellow>Maintenance enabled for <white>{target}</white>."
+    disabled: "{prefix}<green>Maintenance disabled for <white>{target}</white>."
+  versions:
+    denied: "{prefix}<red>{server} only supports Minecraft {versions}. You are using {client_version}."
+  health:
+    offline: "{prefix}<red>{server} is offline right now. Please try again later."
+    down: "{prefix}<red>{server} went offline."
+    up: "{prefix}<green>{server} is back online."
+  alert:
+    format: "<dark_gray>[<red>Alert</red>]</dark_gray> <white>{message}"
+  find:
+    result: "{prefix}<white>{player}</white> <gray>is on</gray> <white>{server}</white>"
+    not-online: "{prefix}<red>{player} is not online."
+  ip:
+    result: "{prefix}<gray>IP of <white>{player}</white>: <white>{ip}"
+  servers:
+    line: "<white>{server}</white> <dark_gray>|</dark_gray> <gray>{state}</gray> <dark_gray>|</dark_gray> <gray>{players} players</gray> <dark_gray>|</dark_gray> <gray>forwarding {forwarding}"

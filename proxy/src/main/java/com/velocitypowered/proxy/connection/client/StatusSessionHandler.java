@@ -18,6 +18,7 @@
 package com.velocitypowered.proxy.connection.client;
 
 import com.velocitypowered.api.event.proxy.ProxyPingEvent;
+import com.velocitypowered.api.proxy.server.ServerPing;
 import com.velocitypowered.proxy.VelocityServer;
 import com.velocitypowered.proxy.connection.MinecraftConnection;
 import com.velocitypowered.proxy.connection.MinecraftSessionHandler;
@@ -29,6 +30,8 @@ import com.velocitypowered.proxy.protocol.packet.StatusRequestPacket;
 import com.velocitypowered.proxy.protocol.packet.StatusResponsePacket;
 import com.velocitypowered.proxy.util.except.QuietRuntimeException;
 import io.netty.buffer.ByteBuf;
+import java.net.InetSocketAddress;
+import net.paperstream.paperproxy.network.PingCache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -95,11 +98,23 @@ public class StatusSessionHandler implements MinecraftSessionHandler {
     }
     this.pingReceived = true;
 
+    // PaperProxy: answer from the ping cache when possible.
+    final String cacheKey = PingCache.key(connection.getProtocolVersion().getProtocol(),
+        inbound.getVirtualHost().map(InetSocketAddress::getHostString).orElse(""));
+    final ServerPing cached = server.getPingCache().get(cacheKey);
+    if (cached != null) {
+      final StringBuilder json = new StringBuilder();
+      VelocityServer.getPingGsonInstance(connection.getProtocolVersion()).toJson(cached, json);
+      connection.write(new StatusResponsePacket(json));
+      return true;
+    }
+
     this.server.getServerListPingHandler().getInitialPing(inbound)
         .thenCompose(ping -> server.getEventManager().fire(new ProxyPingEvent(inbound, ping)))
         .thenAcceptAsync(
             (event) -> {
               if (event.getResult().isAllowed()) {
+                server.getPingCache().put(cacheKey, event.getPing());
                 final StringBuilder json = new StringBuilder();
                 VelocityServer.getPingGsonInstance(connection.getProtocolVersion())
                         .toJson(event.getPing(), json);

@@ -110,10 +110,14 @@ import net.paperstream.paperproxy.PaperProxyBranding;
 import net.paperstream.paperproxy.bridge.BridgeReports;
 import net.paperstream.paperproxy.bungee.BungeeLayerBootstrap;
 import net.paperstream.paperproxy.bungee.BungeeLayerHandle;
+import net.paperstream.paperproxy.command.NetworkCommands;
 import net.paperstream.paperproxy.command.PaperProxyCommand;
 import net.paperstream.paperproxy.config.PaperProxyConfig;
 import net.paperstream.paperproxy.forwarding.Forwarding;
 import net.paperstream.paperproxy.messages.PaperProxyMessages;
+import net.paperstream.paperproxy.network.HealthChecker;
+import net.paperstream.paperproxy.network.NetworkRules;
+import net.paperstream.paperproxy.network.PingCache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bstats.MetricsBase;
@@ -188,6 +192,10 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
   private final PaperProxyConfig paperProxyConfig = new PaperProxyConfig(Path.of(""));
   private final Forwarding forwarding = new Forwarding(this, paperProxyConfig, Path.of(""));
   private final BridgeReports bridgeReports = new BridgeReports(this);
+  private final PingCache pingCache = new PingCache(
+      () -> paperProxyConfig.values().pingCacheSeconds());
+  private final HealthChecker healthChecker = new HealthChecker(this);
+  private final NetworkRules networkRules = new NetworkRules(this);
 
   VelocityServer(final ProxyOptions options) {
     pluginManager = new VelocityPluginManager(this);
@@ -210,6 +218,8 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
    */
   private void loadPaperProxyConfig() {
     paperProxyConfig.load();
+    pingCache.clear();
+    healthChecker.start();
     if (forwarding.paperGuardInUse()) {
       try {
         forwarding.loadSecret();
@@ -235,6 +245,33 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
    */
   public Forwarding getForwarding() {
     return forwarding;
+  }
+
+  /**
+   * Returns the server list cache.
+   *
+   * @return the cache
+   */
+  public PingCache getPingCache() {
+    return pingCache;
+  }
+
+  /**
+   * Returns the backend health checks.
+   *
+   * @return the checker
+   */
+  public HealthChecker getHealthChecker() {
+    return healthChecker;
+  }
+
+  /**
+   * Returns maintenance, version and health rules.
+   *
+   * @return the rules
+   */
+  public NetworkRules getNetworkRules() {
+    return networkRules;
   }
 
   /**
@@ -370,6 +407,8 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
 
     channelRegistrar.register(BridgeReports.CHANNEL);
     eventManager.register(VelocityVirtualPlugin.INSTANCE, bridgeReports);
+    eventManager.register(VelocityVirtualPlugin.INSTANCE, networkRules);
+    NetworkCommands.register(this);
 
     for (ServerInfo cliServer : options.getServers()) {
       servers.register(cliServer);

@@ -64,3 +64,26 @@ paperproxy:
     key: "<gray>PaperGuard-Schlüssel für <white>{server}</white>:</gray>\n<yellow>{key}</yellow>\n<gray>Trage ihn auf diesem Server in <white>plugins/PaperProxy-Bridge/config.yml</white> ein, zusammen mit <white>server-name: {server}</white>. Geheim halten."
     rotate-confirm: "<red>Damit wird das PaperGuard-Secret ersetzt. Jedes Backend braucht danach seinen neuen Schlüssel und lehnt bis dahin Logins ab.</red> <gray>Tippe <white>paperproxy paperguard rotate confirm</white>, um fortzufahren."
     rotated: "<green>Neues PaperGuard-Secret erstellt.</green> <gray>Die neuen Schlüssel gibt es mit <white>paperproxy paperguard key [server]</white>."
+  maintenance:
+    kick: "<red>Das Netzwerk ist in Wartung.</red>\n<gray>Bitte komm später wieder."
+    server: "{prefix}<red>{server} ist gerade in Wartung."
+    motd: "<red>Wartungsarbeiten</red>\n<gray>Wir sind bald zurück."
+    version-label: "Wartung"
+    status: "{prefix}<gray>Netzwerk-Wartung: <white>{state}</white>, Server in Wartung: <white>{servers}"
+    enabled: "{prefix}<yellow>Wartung aktiviert für <white>{target}</white>."
+    disabled: "{prefix}<green>Wartung deaktiviert für <white>{target}</white>."
+  versions:
+    denied: "{prefix}<red>{server} unterstützt nur Minecraft {versions}. Du nutzt {client_version}."
+  health:
+    offline: "{prefix}<red>{server} ist gerade offline. Bitte versuche es später erneut."
+    down: "{prefix}<red>{server} ist offline gegangen."
+    up: "{prefix}<green>{server} ist wieder online."
+  alert:
+    format: "<dark_gray>[<red>Alarm</red>]</dark_gray> <white>{message}"
+  find:
+    result: "{prefix}<white>{player}</white> <gray>ist auf</gray> <white>{server}</white>"
+    not-online: "{prefix}<red>{player} ist nicht online."
+  ip:
+    result: "{prefix}<gray>IP von <white>{player}</white>: <white>{ip}"
+  servers:
+    line: "<white>{server}</white> <dark_gray>|</dark_gray> <gray>{state}</gray> <dark_gray>|</dark_gray> <gray>{players} Spieler</gray> <dark_gray>|</dark_gray> <gray>Forwarding {forwarding}"

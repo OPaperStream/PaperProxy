@@ -62,6 +62,26 @@ public final class PaperProxyCommand {
             .requires(source -> source.getPermissionValue("paperproxy.command.reload")
                 == Tristate.TRUE)
             .executes(ctx -> reload(server, ctx)))
+        .then(BrigadierCommand.literalArgumentBuilder("maintenance")
+            .requires(source -> source.getPermissionValue("paperproxy.command.maintenance")
+                == Tristate.TRUE)
+            .executes(ctx -> maintenanceStatus(server, ctx))
+            .then(BrigadierCommand.literalArgumentBuilder("on")
+                .executes(ctx -> maintenance(server, ctx, null, true))
+                .then(BrigadierCommand.requiredArgumentBuilder("server", StringArgumentType.word())
+                    .suggests(PaperProxyCommand.serverSuggestions(server))
+                    .executes(ctx -> maintenance(server, ctx,
+                        StringArgumentType.getString(ctx, "server"), true))))
+            .then(BrigadierCommand.literalArgumentBuilder("off")
+                .executes(ctx -> maintenance(server, ctx, null, false))
+                .then(BrigadierCommand.requiredArgumentBuilder("server", StringArgumentType.word())
+                    .suggests(PaperProxyCommand.serverSuggestions(server))
+                    .executes(ctx -> maintenance(server, ctx,
+                        StringArgumentType.getString(ctx, "server"), false)))))
+        .then(BrigadierCommand.literalArgumentBuilder("servers")
+            .requires(source -> source.getPermissionValue("paperproxy.command.servers")
+                == Tristate.TRUE)
+            .executes(ctx -> servers(server, ctx)))
         .then(BrigadierCommand.literalArgumentBuilder("paperguard")
             // Keys are secrets: console only, never shown in game.
             .requires(source -> source instanceof ConsoleCommandSource)
@@ -105,6 +125,64 @@ public final class PaperProxyCommand {
         .append(Component.text(" | ", NamedTextColor.DARK_GRAY))
         .append(link("Discord", PaperProxyBranding.DISCORD_URL))
         .build());
+    return Command.SINGLE_SUCCESS;
+  }
+
+  static com.mojang.brigadier.suggestion.SuggestionProvider<CommandSource> serverSuggestions(
+      final VelocityServer server) {
+    return (ctx, builder) -> {
+      server.getAllServers().forEach(s -> builder.suggest(s.getServerInfo().getName()));
+      return builder.buildFuture();
+    };
+  }
+
+  private static int maintenanceStatus(final VelocityServer server,
+                                       final CommandContext<CommandSource> ctx) {
+    final var values = server.getPaperProxyConfig().values();
+    ctx.getSource().sendMessage(Component.translatable("paperproxy.maintenance.status",
+        Argument.string("state", values.maintenance() ? "on" : "off"),
+        Argument.string("servers", values.maintenanceServers().isEmpty() ? "-"
+            : String.join(", ", values.maintenanceServers()))));
+    return Command.SINGLE_SUCCESS;
+  }
+
+  private static int maintenance(final VelocityServer server,
+                                 final CommandContext<CommandSource> ctx,
+                                 final String target, final boolean enabled) {
+    if (target != null && server.getServer(target).isEmpty()) {
+      ctx.getSource().sendMessage(Component.translatable("velocity.command.server-does-not-exist",
+          Component.text(target)));
+      return 0;
+    }
+    try {
+      server.getPaperProxyConfig().setMaintenance(target, enabled);
+    } catch (final java.io.IOException e) {
+      ctx.getSource().sendMessage(Component.text("Unable to save paperproxy.toml: "
+          + e.getMessage(), NamedTextColor.RED));
+      return 0;
+    }
+    server.getPingCache().clear();
+    ctx.getSource().sendMessage(Component.translatable(enabled
+            ? "paperproxy.maintenance.enabled" : "paperproxy.maintenance.disabled",
+        Argument.string("target", target == null ? "network" : target)));
+    return Command.SINGLE_SUCCESS;
+  }
+
+  private static int servers(final VelocityServer server,
+                             final CommandContext<CommandSource> ctx) {
+    final var values = server.getPaperProxyConfig().values();
+    for (final var registered : server.getAllServers()) {
+      final String name = registered.getServerInfo().getName();
+      final String lower = name.toLowerCase(java.util.Locale.ROOT);
+      final String state = values.maintenanceServers().contains(lower) ? "maintenance"
+          : server.getHealthChecker().status(name).name().toLowerCase(java.util.Locale.ROOT);
+      ctx.getSource().sendMessage(Component.translatable("paperproxy.servers.line",
+          Argument.string("server", name),
+          Argument.string("state", state),
+          Argument.string("forwarding", server.getForwarding().modeFor(name).name()
+              .toLowerCase(java.util.Locale.ROOT)),
+          Argument.string("players", String.valueOf(registered.getPlayersConnected().size()))));
+    }
     return Command.SINGLE_SUCCESS;
   }
 
