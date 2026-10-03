@@ -18,10 +18,12 @@
 package net.paperstream.paperproxy.command;
 
 import com.mojang.brigadier.Command;
+import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.velocitypowered.api.command.BrigadierCommand;
 import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.permission.Tristate;
+import com.velocitypowered.api.proxy.ConsoleCommandSource;
 import com.velocitypowered.api.util.ProxyVersion;
 import com.velocitypowered.proxy.VelocityServer;
 import net.kyori.adventure.text.Component;
@@ -60,6 +62,26 @@ public final class PaperProxyCommand {
             .requires(source -> source.getPermissionValue("paperproxy.command.reload")
                 == Tristate.TRUE)
             .executes(ctx -> reload(server, ctx)))
+        .then(BrigadierCommand.literalArgumentBuilder("paperguard")
+            // Keys are secrets: console only, never shown in game.
+            .requires(source -> source instanceof ConsoleCommandSource)
+            .then(BrigadierCommand.literalArgumentBuilder("key")
+                .then(BrigadierCommand.requiredArgumentBuilder("server",
+                        StringArgumentType.word())
+                    .suggests((ctx, builder) -> {
+                      server.getAllServers().forEach(s ->
+                          builder.suggest(s.getServerInfo().getName()));
+                      return builder.buildFuture();
+                    })
+                    .executes(ctx -> paperGuardKey(server, ctx))))
+            .then(BrigadierCommand.literalArgumentBuilder("rotate")
+                .then(BrigadierCommand.literalArgumentBuilder("confirm")
+                    .executes(ctx -> paperGuardRotate(server, ctx)))
+                .executes(ctx -> {
+                  ctx.getSource().sendMessage(Component.translatable(
+                      "paperproxy.paperguard.rotate-confirm"));
+                  return Command.SINGLE_SUCCESS;
+                })))
         .build());
   }
 
@@ -86,7 +108,42 @@ public final class PaperProxyCommand {
     return Command.SINGLE_SUCCESS;
   }
 
+  private static int paperGuardKey(final VelocityServer server,
+                                   final CommandContext<CommandSource> ctx) {
+    final String name = StringArgumentType.getString(ctx, "server");
+    if (server.getServer(name).isEmpty()) {
+      ctx.getSource().sendMessage(Component.translatable("velocity.command.server-does-not-exist",
+          Component.text(name)));
+      return 0;
+    }
+    try {
+      server.getForwarding().loadSecret();
+    } catch (final java.io.IOException e) {
+      ctx.getSource().sendMessage(Component.text("Unable to load paperguard.secret: "
+          + e.getMessage(), NamedTextColor.RED));
+      return 0;
+    }
+    ctx.getSource().sendMessage(Component.translatable("paperproxy.paperguard.key",
+        Argument.string("server", name),
+        Argument.string("key", server.getForwarding().serverKey(name))));
+    return Command.SINGLE_SUCCESS;
+  }
+
+  private static int paperGuardRotate(final VelocityServer server,
+                                      final CommandContext<CommandSource> ctx) {
+    try {
+      server.getForwarding().rotateSecret();
+    } catch (final java.io.IOException e) {
+      ctx.getSource().sendMessage(Component.text("Unable to write paperguard.secret: "
+          + e.getMessage(), NamedTextColor.RED));
+      return 0;
+    }
+    ctx.getSource().sendMessage(Component.translatable("paperproxy.paperguard.rotated"));
+    return Command.SINGLE_SUCCESS;
+  }
+
   private static int reload(final VelocityServer server, final CommandContext<CommandSource> ctx) {
+    server.getPaperProxyConfig().load();
     final boolean success = server.getMessages().load();
     ctx.getSource().sendMessage(Component.translatable(success
         ? "paperproxy.command.reload-success" : "paperproxy.command.reload-failure"));

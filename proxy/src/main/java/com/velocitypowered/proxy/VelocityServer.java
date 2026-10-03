@@ -107,9 +107,12 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.translation.MiniMessageTranslationStore;
 import net.kyori.adventure.translation.GlobalTranslator;
 import net.paperstream.paperproxy.PaperProxyBranding;
+import net.paperstream.paperproxy.bridge.BridgeReports;
 import net.paperstream.paperproxy.bungee.BungeeLayerBootstrap;
 import net.paperstream.paperproxy.bungee.BungeeLayerHandle;
 import net.paperstream.paperproxy.command.PaperProxyCommand;
+import net.paperstream.paperproxy.config.PaperProxyConfig;
+import net.paperstream.paperproxy.forwarding.Forwarding;
 import net.paperstream.paperproxy.messages.PaperProxyMessages;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -182,6 +185,9 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
   private final ServerListPingHandler serverListPingHandler;
   private final PaperProxyMessages messages = new PaperProxyMessages(Path.of(""));
   private volatile @Nullable BungeeLayerHandle bungeeLayer;
+  private final PaperProxyConfig paperProxyConfig = new PaperProxyConfig(Path.of(""));
+  private final Forwarding forwarding = new Forwarding(this, paperProxyConfig, Path.of(""));
+  private final BridgeReports bridgeReports = new BridgeReports(this);
 
   VelocityServer(final ProxyOptions options) {
     pluginManager = new VelocityPluginManager(this);
@@ -197,6 +203,47 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
 
   public KeyPair getServerKeyPair() {
     return serverKeyPair;
+  }
+
+  /**
+   * Reads paperproxy.toml and, when PaperGuard is used, its secret.
+   */
+  private void loadPaperProxyConfig() {
+    paperProxyConfig.load();
+    if (forwarding.paperGuardInUse()) {
+      try {
+        forwarding.loadSecret();
+      } catch (IOException e) {
+        logger.error("Unable to load the PaperGuard secret; PaperGuard logins will fail", e);
+      }
+    }
+  }
+
+  /**
+   * Returns the PaperProxy settings from paperproxy.toml.
+   *
+   * @return the settings
+   */
+  public PaperProxyConfig getPaperProxyConfig() {
+    return paperProxyConfig;
+  }
+
+  /**
+   * Returns the per-server forwarding and PaperGuard.
+   *
+   * @return the forwarding
+   */
+  public Forwarding getForwarding() {
+    return forwarding;
+  }
+
+  /**
+   * Returns what PaperProxy-Bridge reported about the backends.
+   *
+   * @return the reports
+   */
+  public BridgeReports getBridgeReports() {
+    return bridgeReports;
   }
 
   /**
@@ -317,8 +364,12 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
     );
 
     this.doStartupConfigLoad();
+    this.loadPaperProxyConfig();
 
     registerTranslations();
+
+    channelRegistrar.register(BridgeReports.CHANNEL);
+    eventManager.register(VelocityVirtualPlugin.INSTANCE, bridgeReports);
 
     for (ServerInfo cliServer : options.getServers()) {
       servers.register(cliServer);
@@ -525,6 +576,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
       return false;
     }
     messages.load();
+    loadPaperProxyConfig();
 
     // Re-register servers. If a server is being replaced or removed, make sure to note what
     // players need to move back to a fallback server.

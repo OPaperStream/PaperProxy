@@ -38,6 +38,7 @@ import com.velocitypowered.proxy.connection.MinecraftSessionHandler;
 import com.velocitypowered.proxy.connection.PlayerDataForwarding;
 import com.velocitypowered.proxy.connection.client.ConnectedPlayer;
 import com.velocitypowered.proxy.connection.forge.modern.ModernForgeConnectionType;
+import com.velocitypowered.proxy.connection.util.ConnectionRequestResults;
 import com.velocitypowered.proxy.connection.util.ConnectionRequestResults.Impl;
 import com.velocitypowered.proxy.protocol.StateRegistry;
 import com.velocitypowered.proxy.protocol.packet.HandshakePacket;
@@ -53,6 +54,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import net.kyori.adventure.text.Component;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.jetbrains.annotations.NotNull;
@@ -99,6 +101,15 @@ public class VelocityServerConnection implements MinecraftConnectionAssociation,
    */
   public CompletableFuture<Impl> connect() {
     CompletableFuture<Impl> result = new CompletableFuture<>();
+    // PaperProxy: forwarding is chosen per server, so an old client may reach a modern server.
+    if (server.getForwarding().modeFor(registeredServer.getServerInfo().getName())
+        == PlayerInfoForwarding.MODERN
+        && proxyPlayer.getProtocolVersion().lessThan(ProtocolVersion.MINECRAFT_1_13)) {
+      result.complete(ConnectionRequestResults.forDisconnect(
+          Component.translatable("velocity.error.modern-forwarding-needs-new-client"),
+          registeredServer));
+      return result;
+    }
     // Note: we use the event loop for the connection the player is on. This reduces context
     // switches.
     server.createBootstrap(proxyPlayer.getConnection().eventLoop())
@@ -164,7 +175,8 @@ public class VelocityServerConnection implements MinecraftConnectionAssociation,
 
   private void startHandshake() {
     final MinecraftConnection mc = ensureConnected();
-    PlayerInfoForwarding forwardingMode = server.getConfiguration().getPlayerInfoForwardingMode();
+    PlayerInfoForwarding forwardingMode = server.getForwarding()
+        .modeFor(registeredServer.getServerInfo().getName());
 
     // Initiate the handshake.
     ProtocolVersion protocolVersion = proxyPlayer.getConnection().getProtocolVersion();
@@ -177,6 +189,10 @@ public class VelocityServerConnection implements MinecraftConnectionAssociation,
     handshake.setProtocolVersion(protocolVersion);
     if (forwardingMode == PlayerInfoForwarding.LEGACY) {
       handshake.setServerAddress(createLegacyForwardingAddress());
+    } else if (forwardingMode == PlayerInfoForwarding.PAPERGUARD) {
+      handshake.setServerAddress(server.getForwarding().paperGuardAddress(playerVhost,
+          getPlayerRemoteAddressAsString(), proxyPlayer.getGameProfile(),
+          registeredServer.getServerInfo().getName()));
     } else if (forwardingMode == PlayerInfoForwarding.BUNGEEGUARD) {
       byte[] secret = server.getConfiguration().getForwardingSecret();
       handshake.setServerAddress(createBungeeGuardForwardingAddress(secret));

@@ -83,7 +83,7 @@ public class LoginSessionHandler implements MinecraftSessionHandler {
   public boolean handle(LoginPluginMessagePacket packet) {
     MinecraftConnection mc = serverConn.ensureConnected();
     VelocityConfiguration configuration = server.getConfiguration();
-    if (configuration.getPlayerInfoForwardingMode() == PlayerInfoForwarding.MODERN
+    if (forwardingMode() == PlayerInfoForwarding.MODERN
         && packet.getChannel().equals(PlayerDataForwarding.CHANNEL)) {
 
       int requestedForwardingVersion = PlayerDataForwarding.MODERN_DEFAULT;
@@ -143,7 +143,7 @@ public class LoginSessionHandler implements MinecraftSessionHandler {
 
   @Override
   public boolean handle(ServerLoginSuccessPacket packet) {
-    if (server.getConfiguration().getPlayerInfoForwardingMode() == PlayerInfoForwarding.MODERN && !informationForwarded) {
+    if (forwardingMode() == PlayerInfoForwarding.MODERN && !informationForwarded) {
       resultFuture.complete(ConnectionRequestResults.forDisconnect(MODERN_IP_FORWARDING_FAILURE, serverConn.getServer()));
       serverConn.disconnect();
       return true;
@@ -202,7 +202,8 @@ public class LoginSessionHandler implements MinecraftSessionHandler {
 
   @Override
   public void disconnected() {
-    if (server.getConfiguration().getPlayerInfoForwardingMode() == PlayerInfoForwarding.LEGACY) {
+    final PlayerInfoForwarding mode = forwardingMode();
+    if (mode == PlayerInfoForwarding.LEGACY || mode == PlayerInfoForwarding.PAPERGUARD) {
       resultFuture.completeExceptionally(new QuietRuntimeException(
               """
               The connection to the remote server was unexpectedly closed.
@@ -216,4 +217,9 @@ public class LoginSessionHandler implements MinecraftSessionHandler {
       );
     }
   }
+
+  private PlayerInfoForwarding forwardingMode() {
+    return server.getForwarding().modeFor(serverConn.getServerInfo().getName());
+  }
+
 }

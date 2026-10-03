@@ -36,6 +36,10 @@ sequenceOf(
 include(":paperproxy-bungee")
 project(":paperproxy-bungee").projectDir = file("bungee")
 
+// PaperProxy-Bridge: backend plugin (Paper/Folia) that verifies PaperGuard logins
+include(":paperproxy-bridge")
+project(":paperproxy-bridge").projectDir = file("bridge")
+
 // Include Configurate 3
 val deprecatedConfigurateModule = ":deprecated-configurate3"
 include(deprecatedConfigurateModule)

@@ -1,0 +1,9 @@
+name: PaperProxy-Bridge
+main: net.paperstream.paperproxy.bridge.PaperProxyBridge
+version: '${version}'
+author: LucasTHCR
+description: Verifies PaperGuard logins from PaperProxy and reports this server to the proxy.
+website: https://github.com/OPaperStream/PaperProxy
+api-version: '1.13'
+load: STARTUP
+folia-supported: true

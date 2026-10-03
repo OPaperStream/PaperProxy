@@ -1,0 +1,24 @@
+# PaperProxy-Bridge
+#
+# This plugin lets players join only through PaperProxy. Every login carries a signature that
+# only the proxy can create; logins without a valid signature are rejected.
+#
+# Setup:
+# 1. In spigot.yml set settings.bungeecord to true, and in paper-global.yml (or paper.yml)
+#    leave velocity support disabled.
+# 2. On the proxy, put this server into paperproxy.toml:  [forwarding.servers]  <name> = "paperguard"
+# 3. On the proxy console run:  paperproxy paperguard key <name>
+# 4. Copy the server name and the key below and restart this server.
+
+# The name of this server exactly as in the proxy's velocity.toml.
+server-name: ""
+
+# The key printed by "paperproxy paperguard key <name>". Keep it secret.
+key: ""
+
+# Optional: only accept connections from these proxy addresses (needs Paper 1.16.5+).
+# Leave empty to accept any address; the signature check always applies.
+allowed-proxy-addresses: []
+
+# How long a signed login stays valid, in seconds. Must match the proxy.
+max-age-seconds: 10

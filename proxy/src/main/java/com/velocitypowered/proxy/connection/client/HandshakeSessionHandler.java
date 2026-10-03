@@ -24,7 +24,6 @@ import com.velocitypowered.api.network.HandshakeIntent;
 import com.velocitypowered.api.network.ProtocolState;
 import com.velocitypowered.api.network.ProtocolVersion;
 import com.velocitypowered.proxy.VelocityServer;
-import com.velocitypowered.proxy.config.PlayerInfoForwarding;
 import com.velocitypowered.proxy.connection.ConnectionType;
 import com.velocitypowered.proxy.connection.ConnectionTypes;
 import com.velocitypowered.proxy.connection.MinecraftConnection;
@@ -146,7 +145,7 @@ public class HandshakeSessionHandler implements MinecraftSessionHandler {
 
     // If the proxy is configured for modern forwarding, we must deny connections from 1.12.2
     // and lower, otherwise IP information will never get forwarded.
-    if (server.getConfiguration().getPlayerInfoForwardingMode() == PlayerInfoForwarding.MODERN
+    if (server.getForwarding().everyServerModern()
         && handshake.getProtocolVersion().lessThan(ProtocolVersion.MINECRAFT_1_13)) {
       // Bump connection into correct protocol state so that we can send the disconnect packet.
       connection.setState(StateRegistry.LOGIN);

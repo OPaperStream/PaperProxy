@@ -1,0 +1,66 @@
+# PaperProxy settings.
+# Velocity's own settings (servers, bind address, online mode, ...) stay in velocity.toml.
+# Reload with /paperproxy reload. Errors are reported with the setting's name and the file is
+# never overwritten with defaults.
+
+[forwarding]
+# Forwarding mode per server, overriding player-info-forwarding-mode from velocity.toml.
+# Modes: "modern", "paperguard", "bungeeguard", "legacy", "none".
+#   modern      Paper 1.13+ built in, recommended
+#   paperguard  signed and replay-proof, needs PaperProxy-Bridge on the backend
+#   bungeeguard needs the BungeeGuard plugin on the backend
+#   legacy      plain BungeeCord forwarding, only safe behind a strict firewall
+[forwarding.servers]
+# old-pvp = "paperguard"
+
+[paperguard]
+# How long a signed login stays valid, in seconds. Proxy and backends need roughly the
+# same clock (NTP).
+max-age-seconds = 10
+
+[versions]
+# Allowed client versions per server, e.g. lobby = "1.8-latest" or pvp = "1.8-1.8.9".
+# Players with other versions get a clear message instead of a protocol error.
+# lobby = "1.8-latest"
+
+[health-check]
+enabled = true
+# Seconds between pings to every backend server.
+interval-seconds = 10
+# Players with this permission are told when a server goes down or comes back.
+notify-permission = "paperproxy.notify.health"
+
+[maintenance]
+# Global maintenance: only players with paperproxy.maintenance.bypass or on the whitelist
+# may join. Toggle with /paperproxy maintenance on|off [server].
+enabled = false
+# Servers in maintenance (players without bypass cannot connect to them).
+servers = []
+whitelist = []
+
+[ping-cache]
+# Server list responses are reused for this many seconds. 0 disables the cache.
+seconds = 5
+
+[watchdog]
+# Warn when a plugin listener blocks an event for longer than this (milliseconds).
+# 0 disables the watchdog.
+warn-after-ms = 500
+
+[plugin-reload]
+# Require "confirm" after /paperproxy plugin reload|load|unload.
+require-confirm = true
+# Plugins that are never reloaded because they are known to break.
+blocked = ["viaversion", "viabackwards", "viarewind", "luckperms", "geyser", "floodgate"]
+
+[updates]
+# Check GitHub releases for new PaperProxy versions and announce them.
+check = true
+# "release", "beta" or "alpha".
+channel = "release"
+
+[auto-update]
+# Download verified updates automatically; they become active on the next restart.
+enabled = false
+# Never install a new major version automatically.
+allow-major = false

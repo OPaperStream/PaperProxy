@@ -72,3 +72,7 @@ paperproxy:
     based-on: "<gray>Based on Velocity {velocity_version}, licensed under the GNU GPL v3."
     reload-success: "{prefix}<green>Messages reloaded."
     reload-failure: "{prefix}<red>Could not reload the messages. Check the console for details."
+  paperguard:
+    key: "<gray>PaperGuard key for <white>{server}</white>:</gray>\n<yellow>{key}</yellow>\n<gray>Put it into <white>plugins/PaperProxy-Bridge/config.yml</white> on that server, with <white>server-name: {server}</white>. Keep it secret."
+    rotate-confirm: "<red>This replaces the PaperGuard secret. Every backend needs its new key afterwards and rejects logins until then.</red> <gray>Type <white>paperproxy paperguard rotate confirm</white> to continue."
+    rotated: "<green>New PaperGuard secret created.</green> <gray>Get the new keys with <white>paperproxy paperguard key [server]</white>."
