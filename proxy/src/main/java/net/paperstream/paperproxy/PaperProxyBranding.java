@@ -35,6 +35,16 @@ public final class PaperProxyBranding {
   public static final String DISCORD_URL = "https://dc.gg/paperstream";
 
   private static final String VELOCITY_VERSION = readVelocityVersion();
+  private static final String[] LOGO = {
+      " ____                       ____",
+      "|  _ \\ __ _ _ __   ___ _ __|  _ \\ _ __ _____  ___   _",
+      "| |_) / _` | '_ \\ / _ \\ '__| |_) | '__/ _ \\ \\/ / | | |",
+      "|  __/ (_| | |_) |  __/ |  |  __/| | | (_) >  <| |_| |",
+      "|_|   \\__,_| .__/ \\___|_|  |_|   |_|  \\___/_/\\_\\\\__, |",
+      "           |_|                                  |___/",
+      "                                  made by LucasTHCR"
+  };
+
 
   private PaperProxyBranding() {
     throw new AssertionError();
@@ -58,7 +68,10 @@ public final class PaperProxyBranding {
    */
   public static void printBanner(final Logger logger, final ProxyVersion version) {
     logger.info("------------------------------------------------------------");
-    logger.info("{} made by {}", NAME, AUTHOR);
+    for (final String line : LOGO) {
+      logger.info(line);
+    }
+    logger.info("");
     logger.info("{} {} - {}", NAME, version.getVersion(), DISCLAIMER);
     logger.info("Based on Velocity {} (GPL-3.0). {}", VELOCITY_VERSION, REPOSITORY_URL);
     logger.info("Please report problems to PaperProxy, not to PaperMC: {}", DISCORD_URL);
