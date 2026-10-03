@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PaperProxy Plugin Checker</title>
+<meta name="description" content="Check whether a Velocity or BungeeCord plugin works on PaperProxy. Runs in your browser; nothing is uploaded.">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --bg: #0b1b2e; --panel: #11263f; --panel-2: #16314f; --text: #e6eef7; --muted: #8fb3cf;
+    --brand: #3ad9cd; --brand-2: #8df3e4; --ok: #3ddc84; --warn: #f5c04a; --fail: #ff6b6b;
+    --info: #7aa7ff; --border: #24476b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
+  header { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
+  header img { width: 56px; height: 56px; }
+  h1 { margin: 0; font-size: 1.8rem; }
+  h1 span { color: var(--brand); }
+  .notice {
+    display: inline-block; margin: 8px 0 24px; padding: 4px 10px; border: 1px solid var(--fail);
+    border-radius: 6px; color: var(--fail); font-size: .8rem; letter-spacing: .05em;
+  }
+  p.lead { color: var(--muted); margin-top: 0; }
+  #drop {
+    border: 2px dashed var(--border); border-radius: 14px; background: var(--panel);
+    padding: 40px 16px; text-align: center; cursor: pointer; transition: .15s;
+  }
+  #drop.over, #drop:hover { border-color: var(--brand); background: var(--panel-2); }
+  #drop strong { color: var(--brand); }
+  #drop small { display: block; color: var(--muted); margin-top: 8px; }
+  input[type=file] { display: none; }
+  #results { margin-top: 24px; display: grid; gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .card h2 { margin: 0 0 4px; font-size: 1.15rem; word-break: break-all; }
+  .meta { color: var(--muted); font-size: .9rem; margin-bottom: 12px; }
+  .verdict { display: inline-block; padding: 3px 10px; border-radius: 999px; font-weight: 600; font-size: .85rem; }
+  .verdict.ok { background: rgba(61,220,132,.15); color: var(--ok); }
+  .verdict.warn { background: rgba(245,192,74,.15); color: var(--warn); }
+  .verdict.fail { background: rgba(255,107,107,.15); color: var(--fail); }
+  ul.findings { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+  ul.findings li { border-left: 3px solid var(--border); padding: 4px 0 4px 12px; }
+  li.ok { border-color: var(--ok) !important; }
+  li.warn { border-color: var(--warn) !important; }
+  li.fail { border-color: var(--fail) !important; }
+  li.info { border-color: var(--info) !important; }
+  .where { display: block; color: var(--muted); font-size: .8rem; font-family: ui-monospace, monospace; word-break: break-all; }
+  .loading { color: var(--muted); }
+  footer { margin-top: 48px; color: var(--muted); font-size: .85rem; }
+  a { color: var(--brand); }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0 0; font-size: .85rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="icon.svg" alt="">
+    <h1>Paper<span>Proxy</span> Plugin Checker</h1>
+  </header>
+  <div class="notice">NOT AN OFFICIAL PAPER PROJECT &middot; not affiliated with PaperMC</div>
+  <p class="lead">Drop your proxy plugins here to see whether they run on PaperProxy. The check runs
+    in your browser: your files are <strong>never uploaded</strong> anywhere.</p>
+
+  <label id="drop" for="file">
+    <strong>Drop .jar files here</strong> or click to choose
+    <small>Velocity, BungeeCord and Waterfall plugins. Several files at once are fine.</small>
+  </label>
+  <input id="file" type="file" accept=".jar" multiple>
+
+  <div class="legend">
+    <span><span class="verdict ok">Works</span> runs on PaperProxy</span>
+    <span><span class="verdict warn">Works with limits</span> some features are ignored</span>
+    <span><span class="verdict fail">Does not work</span> uses things PaperProxy cannot offer</span>
+  </div>
+
+  <div id="results"></div>
+
+  <footer>
+    This is a static check of the plugin's code. It finds the usual problems, but it cannot run
+    the plugin, so a "Works" is a strong hint, not a guarantee. Found a wrong result? Tell us on
+    <a href="https://dc.gg/paperstream">Discord</a> or open an issue on
+    <a href="https://github.com/OPaperStream/PaperProxy/issues">GitHub</a>.
+    <br><br>
+    <a href="https://github.com/OPaperStream/PaperProxy">PaperProxy on GitHub</a> &middot; made by LucasTHCR
+  </footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="checker.js"></script>
+<script>
+  const drop = document.getElementById('drop');
+  const input = document.getElementById('file');
+  const results = document.getElementById('results');
+  const TYPES = {
+    velocity: 'Velocity plugin', bungee: 'BungeeCord plugin', universal: 'Velocity + BungeeCord',
+    bukkit: 'Server plugin (Bukkit/Spigot/Paper)', unknown: 'Unknown'
+  };
+  const VERDICTS = { ok: 'Works', warn: 'Works with limits', fail: 'Does not work' };
+
+  function el(tag, cls, text) {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  async function check(file) {
+    const card = el('div', 'card');
+    card.append(el('h2', '', file.name), el('div', 'loading', 'Checking...'));
+    results.prepend(card);
+    try {
+      const report = await PaperProxyChecker.analyse(JSZip, await file.arrayBuffer());
+      card.replaceChildren();
+      const title = el('h2', '', (report.name || file.name) + (report.version ? ' ' + report.version : ''));
+      const meta = el('div', 'meta');
+      meta.append(el('span', 'verdict ' + report.verdict, VERDICTS[report.verdict]),
+        document.createTextNode('  ' + TYPES[report.type]
+          + (report.javaRequired ? ' · needs Java ' + report.javaRequired : '')
+          + ' · ' + report.classes + ' classes'));
+      const list = el('ul', 'findings');
+      for (const f of report.findings) {
+        const li = el('li', f.level, f.text);
+        if (f.where.length) li.append(el('span', 'where', 'in ' + f.where.join(', ')));
+        list.append(li);
+      }
+      card.append(title, meta, list);
+    } catch (e) {
+      card.replaceChildren(el('h2', '', file.name),
+        el('div', 'meta', 'Could not read this file: ' + e.message));
+    }
+  }
+
+  function handle(files) {
+    for (const file of files) {
+      if (file.name.toLowerCase().endsWith('.jar')) check(file);
+    }
+  }
+
+  input.addEventListener('change', () => { handle(input.files); input.value = ''; });
+  ['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => {
+    e.preventDefault(); drop.classList.add('over');
+  }));
+  ['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => {
+    e.preventDefault(); drop.classList.remove('over');
+  }));
+  drop.addEventListener('drop', e => handle(e.dataTransfer.files));
+</script>
+</body>
+</html>
