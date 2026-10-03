@@ -29,6 +29,7 @@ import org.apache.logging.log4j.Logger;
 public final class PaperProxyBranding {
 
   public static final String NAME = "PaperProxy";
+  public static final String AUTHOR = "LucasTHCR";
   public static final String DISCLAIMER = "NOT OFFICIAL PAPER / not affiliated with PaperMC";
   public static final String REPOSITORY_URL = "https://github.com/OPaperStream/PaperProxy";
   public static final String DISCORD_URL = "https://dc.gg/paperstream";
@@ -57,6 +58,7 @@ public final class PaperProxyBranding {
    */
   public static void printBanner(final Logger logger, final ProxyVersion version) {
     logger.info("------------------------------------------------------------");
+    logger.info("{} made by {}", NAME, AUTHOR);
     logger.info("{} {} - {}", NAME, version.getVersion(), DISCLAIMER);
     logger.info("Based on Velocity {} (GPL-3.0). {}", VELOCITY_VERSION, REPOSITORY_URL);
     logger.info("Please report problems to PaperProxy, not to PaperMC: {}", DISCORD_URL);
