@@ -243,6 +243,9 @@ public final class PaperProxyCommand {
 
   private static int reload(final VelocityServer server, final CommandContext<CommandSource> ctx) {
     server.getPaperProxyConfig().load();
+    server.getPingCache().clear();
+    server.getHealthChecker().start();
+    java.util.concurrent.CompletableFuture.runAsync(server.getUpdateChecker()::check);
     final boolean success = server.getMessages().load();
     ctx.getSource().sendMessage(Component.translatable(success
         ? "paperproxy.command.reload-success" : "paperproxy.command.reload-failure"));
