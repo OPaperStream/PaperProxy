@@ -1,0 +1,58 @@
+{
+  "comment": "PaperGuard v1 test vectors. Every implementation must produce exactly these values.",
+  "vectors": [
+    {
+      "masterSecret": "0123456789abcdef0123456789abcdef",
+      "serverName": "Lobby",
+      "timestamp": 1800000000,
+      "nonceHex": "000102030405060708090a0b0c0d0e0f",
+      "host": "play.example.net",
+      "ip": "203.0.113.7",
+      "uuid": "F3D28CB072253CB1BAEB2DADD2BE89AE",
+      "properties": [
+        {
+          "name": "textures",
+          "value": "skin-data",
+          "signature": "mojang-signature"
+        }
+      ],
+      "serverKey": "MMzEfMnt8Hl6iglCI5h2hI3NydeSkyQKScMFWAznYf4=",
+      "value": "v1:1800000000:AAECAwQFBgcICQoLDA0ODw:Wvf68M56BwWCbo_ibg2mljpqACE_ipgQ3WxfYO9ZNqA"
+    },
+    {
+      "masterSecret": "0123456789abcdef0123456789abcdef",
+      "serverName": "survival",
+      "timestamp": 1700000000,
+      "nonceHex": "ffffffffffffffffffffffffffffffff",
+      "host": "mc.example.org:25565",
+      "ip": "2001:db8::1",
+      "uuid": "00000000000000000000000000000001",
+      "properties": [],
+      "serverKey": "kcfWSDU9fDl9EoVGMfNhG1/9z9ohX0ELRk4Jq5udHC8=",
+      "value": "v1:1700000000:_____________________w:CE9ywDXdDXPQ8g16-Z72N3Jb5zXF18bl0G-ui9sYQIE"
+    },
+    {
+      "masterSecret": "a much longer master secret with spaces and ümlauts",
+      "serverName": "Ünïcode-Server",
+      "timestamp": 42,
+      "nonceHex": "07070707070707070707070707070707",
+      "host": "host\twith\ttabs",
+      "ip": "198.51.100.23",
+      "uuid": "0123456789abcdef0123456789abcdef",
+      "properties": [
+        {
+          "name": "textures",
+          "value": "v",
+          "signature": ""
+        },
+        {
+          "name": "custom",
+          "value": "xéy",
+          "signature": null
+        }
+      ],
+      "serverKey": "p0ttwnp6BTgm1Qd2rVVJfLQ7wWeiOGRPZglMT+9GPkU=",
+      "value": "v1:42:BwcHBwcHBwcHBwcHBwcHBw:V3w2clvErfW7MRlZEXVy02tn6C_bs-ajjtEKNRe1A74"
+    }
+  ]
+}

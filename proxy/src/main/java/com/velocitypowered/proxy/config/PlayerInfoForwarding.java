@@ -25,6 +25,6 @@ public enum PlayerInfoForwarding {
   LEGACY,
   BUNGEEGUARD,
   MODERN,
-  /** PaperProxy: signed legacy forwarding, verified by PaperProxy-Bridge on the backend. */
+  /** PaperProxy: signed legacy forwarding, verified by the PaperGuard plugin on the backend. */
   PAPERGUARD
 }

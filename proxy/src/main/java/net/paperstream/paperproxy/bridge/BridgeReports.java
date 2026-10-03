@@ -32,19 +32,20 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import net.paperstream.paperproxy.PaperProxyBranding;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Receives what PaperProxy-Bridge reports about each backend and warns about known problems,
+ * Receives what PaperGuard (formerly PaperProxy-Bridge) reports about each backend and warns about known problems,
  * such as ViaVersion running on the proxy and on a backend at the same time.
  */
 public final class BridgeReports {
 
-  /** The channel PaperProxy-Bridge reports on. */
+  /** The channel PaperGuard reports on. The name is kept from PaperProxy-Bridge. */
   public static final MinecraftChannelIdentifier CHANNEL =
       MinecraftChannelIdentifier.from("paperproxy:bridge");
+  /** Where backend owners get PaperGuard. */
+  public static final String PAPERGUARD_URL = "https://github.com/OPaperStream/PaperGuard";
   private static final List<String> VIA = List.of("viaversion", "viabackwards", "viarewind");
   private static final Logger logger = LogManager.getLogger(BridgeReports.class);
 
@@ -54,7 +55,7 @@ public final class BridgeReports {
   /**
    * What a backend reported.
    *
-   * @param bridgeVersion the bridge version
+   * @param bridgeVersion the PaperGuard version (or old PaperProxy-Bridge version)
    * @param software the server software
    * @param plugins the plugin names
    */
@@ -104,16 +105,17 @@ public final class BridgeReports {
           plugins.add(element.getAsString());
         }
       }
-      final Report report = new Report(json.get("bridge").getAsString(),
+      final boolean oldBridge = !json.has("paperguard");
+      final Report report = new Report(json.get(oldBridge ? "bridge" : "paperguard").getAsString(),
           json.has("software") ? json.get("software").getAsString() : "?", List.copyOf(plugins));
       reports.put(serverName, report);
-      check(serverName, report);
+      check(serverName, report, oldBridge);
     } catch (final RuntimeException e) {
-      logger.warn("Ignoring an invalid PaperProxy-Bridge report from {}", serverName);
+      logger.warn("Ignoring an invalid PaperGuard report from {}", serverName);
     }
   }
 
-  private void check(final String serverName, final Report report) {
+  private void check(final String serverName, final Report report, final boolean oldBridge) {
     for (final String plugin : report.plugins()) {
       final String lower = plugin.toLowerCase(Locale.ROOT);
       if (VIA.contains(lower) && server.getPluginManager().isLoaded(lower)) {
@@ -121,11 +123,10 @@ public final class BridgeReports {
             + "packets are translated twice and players get kicked.", plugin, serverName);
       }
     }
-    final String proxyVersion = server.getVersion().getVersion().split(" ")[0];
-    if (!report.bridgeVersion().equals(proxyVersion)) {
-      logger.warn("'{}' runs PaperProxy-Bridge {} but the proxy is {} {}. Update the bridge if "
-          + "you see problems.", serverName, report.bridgeVersion(), PaperProxyBranding.NAME,
-          proxyVersion);
+    if (oldBridge) {
+      logger.warn("'{}' runs PaperProxy-Bridge {}, which is now called PaperGuard. Replace it "
+          + "with PaperGuard from {}, your settings are taken over.", serverName,
+          report.bridgeVersion(), PAPERGUARD_URL);
     }
   }
 }

@@ -61,7 +61,7 @@ paperproxy:
     reload-success: "{prefix}<green>Nachrichten neu geladen."
     reload-failure: "{prefix}<red>Die Nachrichten konnten nicht neu geladen werden. Details in der Konsole."
   paperguard:
-    key: "<gray>PaperGuard-Schlüssel für <white>{server}</white>:</gray>\n<yellow>{key}</yellow>\n<gray>Trage ihn auf diesem Server in <white>plugins/PaperProxy-Bridge/config.yml</white> ein, zusammen mit <white>server-name: {server}</white>. Geheim halten."
+    key: "<gray>PaperGuard-Schlüssel für <white>{server}</white>:</gray>\n<yellow>{key}</yellow>\n<gray>Trage ihn auf diesem Server in <white>plugins/PaperGuard/config.yml</white> ein, zusammen mit <white>server-name: {server}</white>. Geheim halten."
     rotate-confirm: "<red>Damit wird das PaperGuard-Secret ersetzt. Jedes Backend braucht danach seinen neuen Schlüssel und lehnt bis dahin Logins ab.</red> <gray>Tippe <white>paperproxy paperguard rotate confirm</white>, um fortzufahren."
     rotated: "<green>Neues PaperGuard-Secret erstellt.</green> <gray>Die neuen Schlüssel gibt es mit <white>paperproxy paperguard key [server]</white>."
   maintenance:

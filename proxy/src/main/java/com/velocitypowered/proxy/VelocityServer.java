@@ -321,7 +321,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
   }
 
   /**
-   * Returns what PaperProxy-Bridge reported about the backends.
+   * Returns what PaperGuard reported about the backends.
    *
    * @return the reports
    */

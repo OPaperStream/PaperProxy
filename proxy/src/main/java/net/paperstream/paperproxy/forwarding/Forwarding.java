@@ -144,7 +144,7 @@ public final class Forwarding {
   }
 
   /**
-   * Returns the key to put into PaperProxy-Bridge's config on a backend.
+   * Returns the key to put into PaperGuard's config on a backend.
    *
    * @param serverName the server name
    * @return the key, Base64

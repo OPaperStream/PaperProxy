@@ -27,8 +27,8 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
- * The PaperGuard wire format. PaperProxy-Bridge contains an identical copy of this logic; both
- * are checked against the same test vectors.
+ * The PaperGuard wire format, see https://github.com/OPaperStream/PaperGuard. The PaperGuard
+ * plugin implements the same format; both are checked against the same test vectors.
  *
  * <p>A PaperGuard login is a BungeeCord legacy handshake ({@code host\0ip\0uuid\0properties})
  * whose property list carries one extra property named {@value #PROPERTY}:
@@ -131,7 +131,7 @@ public final class PaperGuardCodec {
   }
 
   /**
-   * The signed bytes. Public so PaperProxy-Bridge's tests can compare both implementations.
+   * The signed bytes.
    *
    * @param serverName the server name
    * @param timestamp unix time in seconds

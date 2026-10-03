@@ -75,13 +75,14 @@ old-pvp = "paperguard"
 
 **PaperGuard** is signed, replay-proof forwarding for servers that cannot use modern forwarding.
 Every login is signed with HMAC-SHA256 over all player data, the target server name, a timestamp
-and a one-time nonce, using a key derived per server. The backend plugin **PaperProxy-Bridge**
-(Paper 1.12.2+, Folia) verifies it and **rejects everyone when it is not configured** (fail
+and a one-time nonce, using a key derived per server. The backend plugin
+[**PaperGuard**](https://github.com/OPaperStream/PaperGuard) (Paper 1.12.2+, Folia) verifies it and **rejects everyone when it is not configured** (fail
 closed). Replayed, expired, modified or foreign logins are rejected; this is covered by attack
-tests in the build.
+tests and shared test vectors. PaperGuard has its own repository with the protocol spec, so
+other proxies can support it too. It was called PaperProxy-Bridge before.
 
 Setup: set the server to `paperguard`, run `paperproxy paperguard key <server>` in the proxy
-console, put server name and key into `plugins/PaperProxy-Bridge/config.yml` on the backend and
+console, put server name and key into `plugins/PaperGuard/config.yml` on the backend and
 set `settings.bungeecord: true` in its `spigot.yml`.
 
 ### Everything else
@@ -144,7 +145,7 @@ Requires Java 25 (same as current Velocity).
 - Proxy: `proxy/build/libs/paperproxy-<version>.jar` (about 2 MB). On first start it downloads
   its libraries into `libraries/` and checks every file against its SHA-256.
 - Offline variant with everything inside: `proxy/build/libs/paperproxy-<version>-full.jar`
-- Backend plugin: `bridge/build/libs/PaperProxy-Bridge-<version>.jar`
+- Backend plugin: see [PaperGuard](https://github.com/OPaperStream/PaperGuard)
 
 ## Pterodactyl
 
