@@ -8,85 +8,151 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <style>
   :root {
-    --bg: #0b1b2e; --panel: #11263f; --panel-2: #16314f; --text: #e6eef7; --muted: #8fb3cf;
-    --brand: #3ad9cd; --brand-2: #8df3e4; --ok: #3ddc84; --warn: #f5c04a; --fail: #ff6b6b;
-    --info: #7aa7ff; --border: #24476b;
+    --bg: #071423; --bg-2: #0b1b2e; --panel: rgba(17, 38, 63, .72); --panel-solid: #11263f;
+    --text: #e6eef7; --muted: #8fb3cf; --brand: #3ad9cd; --brand-2: #8df3e4;
+    --ok: #3ddc84; --warn: #f5c04a; --fail: #ff6b6b; --info: #7aa7ff; --border: #1f4268;
   }
   * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
   body {
-    margin: 0; background: var(--bg); color: var(--text);
-    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    margin: 0; min-height: 100vh; color: var(--text);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background:
+      radial-gradient(900px 500px at 15% -10%, rgba(58, 217, 205, .16), transparent 60%),
+      radial-gradient(700px 400px at 100% 0%, rgba(122, 167, 255, .12), transparent 60%),
+      linear-gradient(180deg, var(--bg-2), var(--bg));
+    background-attachment: fixed;
   }
-  main { max-width: 860px; margin: 0 auto; padding: 32px 16px 64px; }
-  header { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
-  header img { width: 56px; height: 56px; }
-  h1 { margin: 0; font-size: 1.8rem; }
-  h1 span { color: var(--brand); }
+  main { max-width: 900px; margin: 0 auto; padding: 48px 16px 64px; }
+
+  .hero { text-align: center; margin-bottom: 32px; }
+  .hero img { width: 76px; height: 76px; filter: drop-shadow(0 10px 30px rgba(58, 217, 205, .35)); }
+  h1 { margin: 16px 0 8px; font-size: clamp(1.8rem, 4.5vw, 2.6rem); line-height: 1.15; letter-spacing: -.02em; }
+  h1 .grad {
+    background: linear-gradient(90deg, var(--brand), var(--brand-2)); -webkit-background-clip: text;
+    background-clip: text; color: transparent;
+  }
   .notice {
-    display: inline-block; margin: 8px 0 24px; padding: 4px 10px; border: 1px solid var(--fail);
-    border-radius: 6px; color: var(--fail); font-size: .8rem; letter-spacing: .05em;
+    display: inline-block; padding: 4px 12px; border: 1px solid rgba(255, 107, 107, .6);
+    border-radius: 999px; color: var(--fail); font-size: .72rem; letter-spacing: .08em; font-weight: 600;
   }
-  p.lead { color: var(--muted); margin-top: 0; }
+  .lead { color: var(--muted); max-width: 620px; margin: 18px auto 0; font-size: 1.05rem; }
+  .lead strong { color: var(--text); }
+
   #drop {
-    border: 2px dashed var(--border); border-radius: 14px; background: var(--panel);
-    padding: 40px 16px; text-align: center; cursor: pointer; transition: .15s;
+    display: block; position: relative; border: 2px dashed var(--border); border-radius: 20px;
+    background: var(--panel); backdrop-filter: blur(8px); padding: 48px 20px; text-align: center;
+    cursor: pointer; transition: border-color .2s, transform .2s, background .2s;
   }
-  #drop.over, #drop:hover { border-color: var(--brand); background: var(--panel-2); }
-  #drop strong { color: var(--brand); }
-  #drop small { display: block; color: var(--muted); margin-top: 8px; }
+  #drop:hover, #drop.over { border-color: var(--brand); transform: translateY(-2px); background: rgba(22, 49, 79, .85); }
+  #drop.over { box-shadow: 0 0 0 6px rgba(58, 217, 205, .12); }
+  #drop svg { width: 54px; height: 54px; color: var(--brand); margin-bottom: 12px; }
+  #drop .big { display: block; font-size: 1.25rem; font-weight: 650; }
+  #drop .big b { color: var(--brand); }
+  #drop small { display: block; color: var(--muted); margin-top: 6px; }
+  .privacy {
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 16px; padding: 4px 12px;
+    border-radius: 999px; background: rgba(61, 220, 132, .1); color: var(--ok); font-size: .8rem;
+  }
   input[type=file] { display: none; }
-  #results { margin-top: 24px; display: grid; gap: 16px; }
-  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
-  .card h2 { margin: 0 0 4px; font-size: 1.15rem; word-break: break-all; }
-  .meta { color: var(--muted); font-size: .9rem; margin-bottom: 12px; }
-  .verdict { display: inline-block; padding: 3px 10px; border-radius: 999px; font-weight: 600; font-size: .85rem; }
-  .verdict.ok { background: rgba(61,220,132,.15); color: var(--ok); }
-  .verdict.warn { background: rgba(245,192,74,.15); color: var(--warn); }
-  .verdict.fail { background: rgba(255,107,107,.15); color: var(--fail); }
-  ul.findings { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
-  ul.findings li { border-left: 3px solid var(--border); padding: 4px 0 4px 12px; }
-  li.ok { border-color: var(--ok) !important; }
-  li.warn { border-color: var(--warn) !important; }
-  li.fail { border-color: var(--fail) !important; }
-  li.info { border-color: var(--info) !important; }
-  .where { display: block; color: var(--muted); font-size: .8rem; font-family: ui-monospace, monospace; word-break: break-all; }
-  .loading { color: var(--muted); }
-  footer { margin-top: 48px; color: var(--muted); font-size: .85rem; }
-  a { color: var(--brand); }
-  .legend { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0 0; font-size: .85rem; color: var(--muted); }
+
+  .legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 22px; margin: 22px 0 0; font-size: .85rem; color: var(--muted); }
+  .legend > span { display: inline-flex; align-items: center; gap: 8px; }
+
+  #summary { display: none; justify-content: center; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
+  #summary.show { display: flex; }
+  #summary .count { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 8px 16px; font-size: .9rem; }
+  #summary .count b { font-size: 1.1rem; margin-right: 6px; }
+
+  #results { margin-top: 20px; display: grid; gap: 14px; }
+  .card {
+    background: var(--panel); backdrop-filter: blur(8px); border: 1px solid var(--border);
+    border-left: 4px solid var(--border); border-radius: 14px; padding: 18px 20px;
+    animation: pop .25s ease-out;
+  }
+  .card.ok { border-left-color: var(--ok); }
+  .card.warn { border-left-color: var(--warn); }
+  .card.fail { border-left-color: var(--fail); }
+  @keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .card h2 { margin: 0; font-size: 1.1rem; word-break: break-all; }
+  .meta { color: var(--muted); font-size: .85rem; margin-top: 4px; }
+  .verdict { display: inline-block; padding: 3px 12px; border-radius: 999px; font-weight: 650; font-size: .8rem; white-space: nowrap; }
+  .verdict.ok { background: rgba(61, 220, 132, .15); color: var(--ok); }
+  .verdict.warn { background: rgba(245, 192, 74, .15); color: var(--warn); }
+  .verdict.fail { background: rgba(255, 107, 107, .15); color: var(--fail); }
+  ul.findings { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+  ul.findings li { display: grid; grid-template-columns: 20px 1fr; gap: 8px; font-size: .95rem; }
+  ul.findings li::before { font-weight: 700; text-align: center; }
+  li.ok::before { content: "\2713"; color: var(--ok); }
+  li.warn::before { content: "!"; color: var(--warn); }
+  li.fail::before { content: "\2715"; color: var(--fail); }
+  li.info::before { content: "i"; color: var(--info); }
+  .where { grid-column: 2; color: var(--muted); font-size: .78rem; font-family: ui-monospace, monospace; word-break: break-all; }
+  .loading { color: var(--muted); margin-top: 6px; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--brand); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .how { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-top: 48px; }
+  .how div { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+  .how h3 { margin: 0 0 6px; font-size: .95rem; color: var(--brand); }
+  .how p { margin: 0; color: var(--muted); font-size: .88rem; }
+
+  footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border); color: var(--muted); font-size: .85rem; text-align: center; }
+  footer p { margin: 0 0 10px; }
+  a { color: var(--brand); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .buttons { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin: 16px 0; }
+  .button { padding: 8px 16px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font-weight: 600; font-size: .9rem; }
+  .button.primary { background: linear-gradient(90deg, var(--brand), var(--brand-2)); color: #052026; border: 0; }
+  .button:hover { text-decoration: none; filter: brightness(1.1); }
 </style>
 </head>
 <body>
 <main>
-  <header>
+  <section class="hero">
     <img src="icon.svg" alt="">
-    <h1>Paper<span>Proxy</span> Plugin Checker</h1>
-  </header>
-  <div class="notice">NOT AN OFFICIAL PAPER PROJECT &middot; not affiliated with PaperMC</div>
-  <p class="lead">Drop your proxy plugins here to see whether they run on PaperProxy. The check runs
-    in your browser: your files are <strong>never uploaded</strong> anywhere.</p>
+    <h1><span class="grad">PaperProxy</span> Plugin Checker</h1>
+    <span class="notice">NOT AN OFFICIAL PAPER PROJECT &middot; NOT AFFILIATED WITH PAPERMC</span>
+    <p class="lead">Moving from Velocity, BungeeCord or Waterfall? Drop your proxy plugins below and
+      see right away whether they run on <strong>PaperProxy</strong>.</p>
+  </section>
 
   <label id="drop" for="file">
-    <strong>Drop .jar files here</strong> or click to choose
-    <small>Velocity, BungeeCord and Waterfall plugins. Several files at once are fine.</small>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M20 16v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3"/>
+    </svg>
+    <span class="big"><b>Drop .jar files here</b> or click to choose</span>
+    <small>Velocity, BungeeCord and Waterfall plugins &middot; several files at once are fine</small>
+    <span class="privacy">&#128274; Checked in your browser, nothing is uploaded</span>
   </label>
   <input id="file" type="file" accept=".jar" multiple>
 
   <div class="legend">
     <span><span class="verdict ok">Works</span> runs on PaperProxy</span>
     <span><span class="verdict warn">Works with limits</span> some features are ignored</span>
-    <span><span class="verdict fail">Does not work</span> uses things PaperProxy cannot offer</span>
+    <span><span class="verdict fail">Does not work</span> needs things PaperProxy cannot offer</span>
   </div>
 
+  <div id="summary"></div>
   <div id="results"></div>
 
+  <section class="how">
+    <div><h3>Velocity plugins</h3><p>Run natively. PaperProxy is a Velocity fork, the full Velocity API is there.</p></div>
+    <div><h3>BungeeCord plugins</h3><p>Run through a built-in layer that implements the original BungeeCord API.</p></div>
+    <div><h3>What is checked</h3><p>Plugin type, required Java version and use of BungeeCord internals such as raw packets or Netty.</p></div>
+  </section>
+
   <footer>
-    This is a static check of the plugin's code. It finds the usual problems, but it cannot run
-    the plugin, so a "Works" is a strong hint, not a guarantee. Found a wrong result? Tell us on
-    <a href="https://dc.gg/paperstream">Discord</a> or open an issue on
-    <a href="https://github.com/OPaperStream/PaperProxy/issues">GitHub</a>.
-    <br><br>
-    <a href="https://github.com/OPaperStream/PaperProxy">PaperProxy on GitHub</a> &middot; made by LucasTHCR
+    <div class="buttons">
+      <a class="button primary" href="https://github.com/OPaperStream/PaperProxy/releases">Download PaperProxy</a>
+      <a class="button" href="https://github.com/OPaperStream/PaperProxy">GitHub</a>
+      <a class="button" href="https://dc.gg/paperstream">Discord</a>
+    </div>
+    <p>This is a static check of the plugin's code, so "Works" is a strong hint, not a guarantee.
+      Wrong result? Tell us on <a href="https://dc.gg/paperstream">Discord</a> or open an
+      <a href="https://github.com/OPaperStream/PaperProxy/issues">issue</a>.</p>
+    <p>PaperProxy &middot; made by LucasTHCR</p>
   </footer>
 </main>
 
@@ -111,7 +177,9 @@
 
   async function check(file) {
     const card = el('div', 'card');
-    card.append(el('h2', '', file.name), el('div', 'loading', 'Checking...'));
+    const loading = el('div', 'loading');
+    loading.append(el('span', 'spinner'), document.createTextNode('Checking...'));
+    card.append(el('h2', '', file.name), loading);
     results.prepend(card);
     try {
       const report = await PaperProxyChecker.analyse(JSZip, await file.arrayBuffer());
@@ -133,6 +201,20 @@
       card.replaceChildren(el('h2', '', file.name),
         el('div', 'meta', 'Could not read this file: ' + e.message));
     }
+  }
+
+  const counts = { ok: 0, warn: 0, fail: 0 };
+  const summary = document.getElementById('summary');
+  function updateSummary() {
+    summary.replaceChildren();
+    for (const key of ['ok', 'warn', 'fail']) {
+      const box = el('span', 'count');
+      const n = el('b', '', String(counts[key]));
+      n.style.color = 'var(--' + key + ')';
+      box.append(n, document.createTextNode(VERDICTS[key]));
+      summary.append(box);
+    }
+    summary.classList.add('show');
   }
 
   function handle(files) {
