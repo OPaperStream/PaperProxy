@@ -272,6 +272,7 @@ public final class PaperProxyCommand {
 
   private static int reload(final VelocityServer server, final CommandContext<CommandSource> ctx) {
     server.getPaperProxyConfig().load();
+    server.getMotd().load();
     server.getPingCache().clear();
     server.getHealthChecker().start();
     java.util.concurrent.CompletableFuture.runAsync(server.getUpdateChecker()::check);

@@ -1,0 +1,22 @@
+# PaperProxy server list (MOTD)
+#
+# Formatting: MiniMessage and & color codes. Two lines per MOTD, separated by \n.
+# Placeholders: {online}, {max}, {version} (the client's version).
+# Reload with /paperproxy reload. Plugins that change the server list still have the last word.
+
+# Set to false to keep the motd from velocity.toml.
+enabled: false
+
+# One MOTD is picked per ping: "random" or "rotate" (in order).
+mode: "random"
+motds:
+  - "<gradient:#3ad9cd:#8df3e4>My Network</gradient>\n<gray>Welcome, {version} player!"
+  - "<gradient:#3ad9cd:#8df3e4>My Network</gradient>\n<gray>{online} players online"
+
+# Lines shown when hovering over the player count. Empty list = default player sample.
+hover:
+  - "<aqua>My Network"
+  - "<gray>Discord: dc.gg/example"
+
+# Text shown instead of the player count, e.g. "1.8-1.21". Empty = normal player count.
+version-text: ""

@@ -118,6 +118,7 @@ import net.paperstream.paperproxy.config.PaperProxyConfig;
 import net.paperstream.paperproxy.forwarding.Forwarding;
 import net.paperstream.paperproxy.messages.PaperProxyMessages;
 import net.paperstream.paperproxy.network.HealthChecker;
+import net.paperstream.paperproxy.network.Motd;
 import net.paperstream.paperproxy.network.NetworkRules;
 import net.paperstream.paperproxy.network.PingCache;
 import net.paperstream.paperproxy.plugin.PluginReloader;
@@ -200,6 +201,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
       () -> paperProxyConfig.values().pingCacheSeconds());
   private final HealthChecker healthChecker = new HealthChecker(this);
   private final NetworkRules networkRules = new NetworkRules(this);
+  private final Motd motd = new Motd(Path.of(""));
   private final PluginReloader pluginReloader = new PluginReloader(this);
   private final UpdateChecker updateChecker = new UpdateChecker(this);
 
@@ -225,6 +227,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
   private void loadPaperProxyConfig() {
     paperProxyConfig.load();
     eventManager.setWatchdogMillis(paperProxyConfig.values().watchdogMillis());
+    motd.load();
     pingCache.clear();
     healthChecker.start();
     if (forwarding.paperGuardInUse()) {
@@ -279,6 +282,15 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
    */
   public PluginReloader getPluginReloader() {
     return pluginReloader;
+  }
+
+  /**
+   * Returns the motd.yml settings.
+   *
+   * @return the MOTD
+   */
+  public Motd getMotd() {
+    return motd;
   }
 
   /**
@@ -443,6 +455,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
     channelRegistrar.register(BridgeReports.CHANNEL);
     eventManager.register(VelocityVirtualPlugin.INSTANCE, bridgeReports);
     eventManager.register(VelocityVirtualPlugin.INSTANCE, networkRules);
+    eventManager.register(VelocityVirtualPlugin.INSTANCE, motd);
     eventManager.register(VelocityVirtualPlugin.INSTANCE, updateChecker);
     updateChecker.start();
     NetworkCommands.register(this);
