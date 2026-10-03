@@ -34,6 +34,7 @@ import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.translation.Argument;
 import net.paperstream.paperproxy.PaperProxyBranding;
 import net.paperstream.paperproxy.update.UpdateChecker;
+import net.paperstream.paperproxy.via.ViaInstaller;
 
 /**
  * Implements {@code /paperproxy} (alias {@code /pp}).
@@ -80,6 +81,15 @@ public final class PaperProxyCommand {
                     .executes(ctx -> maintenance(server, ctx,
                         StringArgumentType.getString(ctx, "server"), false)))))
         .then(PluginCommand.create(server))
+        .then(BrigadierCommand.literalArgumentBuilder("via")
+            .requires(source -> source.getPermissionValue("paperproxy.command.via")
+                == Tristate.TRUE)
+            .then(BrigadierCommand.literalArgumentBuilder("install")
+                .executes(ctx -> via(server, ctx, false, false))
+                .then(BrigadierCommand.literalArgumentBuilder("with-rewind")
+                    .executes(ctx -> via(server, ctx, false, true))))
+            .then(BrigadierCommand.literalArgumentBuilder("update")
+                .executes(ctx -> via(server, ctx, true, false))))
         .then(BrigadierCommand.literalArgumentBuilder("update")
             .requires(source -> source.getPermissionValue("paperproxy.update") == Tristate.TRUE)
             .executes(ctx -> {
@@ -155,6 +165,25 @@ public final class PaperProxyCommand {
       server.getAllServers().forEach(s -> builder.suggest(s.getServerInfo().getName()));
       return builder.buildFuture();
     };
+  }
+
+  private static int via(final VelocityServer server, final CommandContext<CommandSource> ctx,
+                         final boolean update, final boolean rewind) {
+    final CommandSource source = ctx.getSource();
+    source.sendMessage(Component.translatable("paperproxy.via.working"));
+    new ViaInstaller(server).run(update, rewind).thenAccept(lines -> {
+      boolean changed = false;
+      for (final ViaInstaller.Line line : lines) {
+        source.sendMessage(Component.translatable(line.key(),
+            Argument.string("plugin", line.project()),
+            Argument.string("detail", String.valueOf(line.detail()))));
+        changed |= line.key().endsWith("installed") || line.key().endsWith("updated");
+      }
+      if (changed) {
+        source.sendMessage(Component.translatable("paperproxy.via.restart"));
+      }
+    });
+    return Command.SINGLE_SUCCESS;
   }
 
   private static int maintenanceStatus(final VelocityServer server,

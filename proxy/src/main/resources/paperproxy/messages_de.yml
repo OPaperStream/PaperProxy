@@ -102,3 +102,10 @@ paperproxy:
     available: "{prefix}<yellow>PaperProxy {version} ist verfügbar</yellow> <gray>(installiert: {current}).</gray> <aqua>{url}"
     none: "{prefix}<green>PaperProxy ist aktuell."
     downloaded: "{prefix}<gray>Das Update wurde heruntergeladen und geprüft. Es wird beim nächsten Neustart aktiv."
+  via:
+    working: "{prefix}<gray>Prüfe ViaVersion, ViaBackwards und ViaRewind auf Modrinth..."
+    installed: "{prefix}<green><white>{plugin}</white> {detail} installiert."
+    updated: "{prefix}<green><white>{plugin}</white> auf {detail} aktualisiert."
+    current: "{prefix}<gray><white>{plugin}</white> ist installiert ({detail})."
+    failed: "{prefix}<red>{plugin}: {detail}"
+    restart: "{prefix}<yellow>Starte den Proxy neu, um die Änderungen zu aktivieren. Via kann nicht im laufenden Betrieb geladen werden."
