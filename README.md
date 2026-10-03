@@ -16,6 +16,34 @@ nothing is uploaded).
 **Status: early development.** Everything below is implemented and tested on
 a test network, but not yet in production use. Expect rough edges.
 
+## Why PaperProxy?
+
+Today a network has to pick one proxy and live with its gaps. Velocity is fast and secure, but
+it cannot run the large library of BungeeCord plugins. Waterfall runs them, but it is end of
+life and gets no more updates. Many networks keep an old proxy alive only for one or two
+plugins they cannot replace.
+
+PaperProxy removes that choice. It is Velocity, with a BungeeCord layer on top, so you keep
+Velocity's speed and security and still use the plugins you already have.
+
+## Why use it?
+
+- **Keep your plugins.** Velocity and BungeeCord plugins in the same `plugins/` folder, no
+  second proxy, no rewrite.
+- **Move without risk.** Drop the jar in, keep your `velocity.toml`. Going back to Velocity is
+  the same step in reverse.
+- **Secure forwarding for every backend.** Modern forwarding where possible, and PaperGuard
+  (signed, replay-proof) for old servers that only speak BungeeCord forwarding, set per
+  server.
+- **Less restarting.** Reload, load and unload plugins at runtime, change messages and MOTDs
+  with `/pp reload`.
+- **Things you would otherwise install plugins for:** maintenance mode, health checks, ping
+  cache, `/alert`, `/find`, ViaVersion install and per-server version rules.
+- **Small and safe updates.** A 2 MB jar that checks every library it downloads, update
+  notices, and an optional auto-updater that only installs signed releases.
+- **Check first.** The [Plugin Checker](https://opaperstream.github.io/PaperProxy/) tells you
+  before you switch which of your plugins will work.
+
 ## Features
 
 ### BungeeCord plugins on Velocity
