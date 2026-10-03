@@ -33,6 +33,7 @@ import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.translation.Argument;
 import net.paperstream.paperproxy.PaperProxyBranding;
+import net.paperstream.paperproxy.update.UpdateChecker;
 
 /**
  * Implements {@code /paperproxy} (alias {@code /pp}).
@@ -79,6 +80,25 @@ public final class PaperProxyCommand {
                     .executes(ctx -> maintenance(server, ctx,
                         StringArgumentType.getString(ctx, "server"), false)))))
         .then(PluginCommand.create(server))
+        .then(BrigadierCommand.literalArgumentBuilder("update")
+            .requires(source -> source.getPermissionValue("paperproxy.update") == Tristate.TRUE)
+            .executes(ctx -> {
+              final var checker = server.getUpdateChecker();
+              final var release = checker.available();
+              if (release == null) {
+                ctx.getSource().sendMessage(Component.translatable("paperproxy.update.none"));
+              } else {
+                ctx.getSource().sendMessage(Component.translatable("paperproxy.update.available",
+                    Argument.string("version", release.version().text()),
+                    Argument.string("current", server.getVersion().getVersion().split(" ")[0]),
+                    Argument.component("url", UpdateChecker.link(release.url()))));
+                if (checker.downloaded() != null) {
+                  ctx.getSource().sendMessage(Component.translatable(
+                      "paperproxy.update.downloaded"));
+                }
+              }
+              return Command.SINGLE_SUCCESS;
+            }))
         .then(BrigadierCommand.literalArgumentBuilder("servers")
             .requires(source -> source.getPermissionValue("paperproxy.command.servers")
                 == Tristate.TRUE)

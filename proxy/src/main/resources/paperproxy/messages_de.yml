@@ -98,3 +98,7 @@ paperproxy:
     file-not-found: "{prefix}<red>plugins/{plugin} existiert nicht."
     has-dependents: "{prefix}<red>{plugin} wird von {detail} benötigt. Diese zuerst entladen."
     list: "{prefix}<gray>Velocity-Plugins: <white>{velocity}</white>\n<gray>BungeeCord-Plugins: <white>{bungee}</white>\n<gray>Änderungen zur Laufzeit seit Start: <white>{changes}"
+  update:
+    available: "{prefix}<yellow>PaperProxy {version} ist verfügbar</yellow> <gray>(installiert: {current}).</gray> <aqua>{url}"
+    none: "{prefix}<green>PaperProxy ist aktuell."
+    downloaded: "{prefix}<gray>Das Update wurde heruntergeladen und geprüft. Es wird beim nächsten Neustart aktiv."

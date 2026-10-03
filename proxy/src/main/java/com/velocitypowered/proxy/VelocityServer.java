@@ -119,6 +119,7 @@ import net.paperstream.paperproxy.network.HealthChecker;
 import net.paperstream.paperproxy.network.NetworkRules;
 import net.paperstream.paperproxy.network.PingCache;
 import net.paperstream.paperproxy.plugin.PluginReloader;
+import net.paperstream.paperproxy.update.UpdateChecker;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bstats.MetricsBase;
@@ -198,6 +199,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
   private final HealthChecker healthChecker = new HealthChecker(this);
   private final NetworkRules networkRules = new NetworkRules(this);
   private final PluginReloader pluginReloader = new PluginReloader(this);
+  private final UpdateChecker updateChecker = new UpdateChecker(this);
 
   VelocityServer(final ProxyOptions options) {
     pluginManager = new VelocityPluginManager(this);
@@ -257,6 +259,15 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
    */
   public @Nullable BungeeLayerHandle getBungeeLayer() {
     return bungeeLayer;
+  }
+
+  /**
+   * Returns the update checker.
+   *
+   * @return the checker
+   */
+  public UpdateChecker getUpdateChecker() {
+    return updateChecker;
   }
 
   /**
@@ -429,6 +440,8 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
     channelRegistrar.register(BridgeReports.CHANNEL);
     eventManager.register(VelocityVirtualPlugin.INSTANCE, bridgeReports);
     eventManager.register(VelocityVirtualPlugin.INSTANCE, networkRules);
+    eventManager.register(VelocityVirtualPlugin.INSTANCE, updateChecker);
+    updateChecker.start();
     NetworkCommands.register(this);
 
     for (ServerInfo cliServer : options.getServers()) {
@@ -815,6 +828,8 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
         // Not much we can do about this...
         Thread.currentThread().interrupt();
       }
+
+      updateChecker.applyOnShutdown();
 
       // Since we manually removed the shutdown hook, we need to handle the shutdown ourselves.
       LogManager.shutdown();
