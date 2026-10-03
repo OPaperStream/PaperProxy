@@ -1,0 +1,74 @@
+# PaperProxy messages
+#
+# Every text the proxy shows to players or in the console can be changed here.
+# Formatting: MiniMessage (https://docs.advntr.dev/minimessage/format.html) and legacy
+# color codes (&a, &l, &#55ffaa, ...) both work, also mixed.
+#
+# Placeholders are written in curly braces, e.g. {server}. {prefix} inserts the prefix below.
+# Each message only knows the placeholders that are already used in its default text.
+#
+# Reload without restart: /paperproxy reload
+# Missing keys are added automatically after updates; your texts are kept and the old file
+# is saved as a backup next to this one.
+
+# When true, players get messages_<language>.yml (e.g. messages_de.yml) if it exists for
+# their client language. Keys missing there fall back to this file.
+per-client-language: false
+
+prefix: "<gradient:#3ad9cd:#8df3e4>PaperProxy</gradient> <dark_gray>»</dark_gray> "
+
+velocity:
+  error:
+    already-connected: "You are already connected to this server!"
+    already-connected-proxy: "You are already connected to this proxy!"
+    already-connecting: "You are already trying to connect to a server!"
+    cant-connect: "Unable to connect to {server}: {reason}"
+    connecting-server-error: "Unable to connect you to {server}. Please try again later."
+    connected-server-error: "Your connection to {server} encountered a problem."
+    internal-server-connection-error: "An internal server connection error occurred."
+    logging-in-too-fast: "You are logging in too fast, try again later."
+    online-mode-only: "You are not logged into your Minecraft account. If you are logged into your Minecraft account, try restarting your Minecraft client."
+    player-connection-error: "An internal error occurred in your connection."
+    plugin-message-overflow: "You sent too many plugin messages before completing the connection."
+    modern-forwarding-needs-new-client: "This server is only compatible with Minecraft 1.13 and above."
+    modern-forwarding-failed: "Your server did not send a forwarding request to the proxy. Make sure the server is configured for Velocity forwarding."
+    moved-to-new-server: "You were kicked from {server}: {reason}"
+    no-available-servers: "There are no available servers to connect you to. Try again later or contact an admin."
+    illegal-chat-characters: "Illegal characters in chat"
+  command:
+    generic-error: "An error occurred while running this command."
+    command-does-not-exist: "This command does not exist."
+    players-only: "Only players can run this command."
+    server-does-not-exist: "The specified server {server} does not exist."
+    player-not-found: "The specified player {player} does not exist."
+    server-current-server: "You are currently connected to {server}."
+    server-too-many: "There are too many servers set up. Use tab completion to view all servers available."
+    server-available: "Available servers:"
+    server-tooltip-player-online: "{count} player online"
+    server-tooltip-players-online: "{count} players online"
+    server-tooltip-current-server: "Currently connected to this server"
+    server-tooltip-offer-connect-server: "Click to connect to this server"
+    glist-player-singular: "{count} player is currently connected to the proxy."
+    glist-player-plural: "{count} players are currently connected to the proxy."
+    glist-view-all: "To view all players on servers, use /glist all."
+    reload-success: "Proxy configuration successfully reloaded."
+    reload-failure: "Unable to reload your proxy configuration. Check the console for more details."
+    version-copyright: "Copyright 2018-{year} {vendor}. {name} is licensed under the terms of the GNU General Public License v3."
+    version-offer-copy-version: "Click to copy version to clipboard"
+    no-plugins: "There are no plugins currently installed."
+    plugins-list: "Plugins: {plugins}"
+    plugin-tooltip-website: "Website: {url}"
+    plugin-tooltip-author: "Author: {author}"
+    plugin-tooltip-authors: "Authors: {authors}"
+    send-usage: "/send <player> <server>"
+  kick:
+    shutdown: "Proxy shutting down."
+    command-rate-limit: "You are sending too many commands too quickly."
+    tab-complete-rate-limit: "You are sending too many tab complete requests too quickly."
+
+paperproxy:
+  command:
+    disclaimer: "<red>Not an official Paper project. PaperProxy is not affiliated with PaperMC."
+    based-on: "<gray>Based on Velocity {velocity_version}, licensed under the GNU GPL v3."
+    reload-success: "{prefix}<green>Messages reloaded."
+    reload-failure: "{prefix}<red>Could not reload the messages. Check the console for details."

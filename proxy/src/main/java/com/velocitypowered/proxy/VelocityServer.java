@@ -106,6 +106,9 @@ import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.translation.MiniMessageTranslationStore;
 import net.kyori.adventure.translation.GlobalTranslator;
+import net.paperstream.paperproxy.PaperProxyBranding;
+import net.paperstream.paperproxy.command.PaperProxyCommand;
+import net.paperstream.paperproxy.messages.PaperProxyMessages;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bstats.MetricsBase;
@@ -175,6 +178,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
   private final VelocityScheduler scheduler;
   private final VelocityChannelRegistrar channelRegistrar = new VelocityChannelRegistrar();
   private final ServerListPingHandler serverListPingHandler;
+  private final PaperProxyMessages messages = new PaperProxyMessages(Path.of(""));
 
   VelocityServer(final ProxyOptions options) {
     pluginManager = new VelocityPluginManager(this);
@@ -192,6 +196,15 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
     return serverKeyPair;
   }
 
+  /**
+   * Returns the messages.yml store.
+   *
+   * @return the messages
+   */
+  public PaperProxyMessages getMessages() {
+    return messages;
+  }
+
   @Override
   public VelocityConfiguration getConfiguration() {
     return this.configuration;
@@ -204,13 +217,14 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
     String implVersion;
     String implVendor;
     if (pkg != null) {
-      implName = MoreObjects.firstNonNull(pkg.getImplementationTitle(), "Velocity");
+      implName = MoreObjects.firstNonNull(pkg.getImplementationTitle(), PaperProxyBranding.NAME);
       implVersion = MoreObjects.firstNonNull(pkg.getImplementationVersion(), "<unknown>");
-      implVendor = MoreObjects.firstNonNull(pkg.getImplementationVendor(), "Velocity Contributors");
+      implVendor = MoreObjects.firstNonNull(pkg.getImplementationVendor(),
+          "PaperProxy Contributors");
     } else {
-      implName = "Velocity";
+      implName = PaperProxyBranding.NAME;
       implVersion = "<unknown>";
-      implVendor = "Velocity Contributors";
+      implVendor = "PaperProxy Contributors";
     }
 
     return new ProxyVersion(implName, implVendor, implVersion);
@@ -240,6 +254,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
   @EnsuresNonNull({"serverKeyPair", "servers", "pluginManager", "eventManager", "scheduler",
       "console", "cm", "configuration"})
   void start() {
+    PaperProxyBranding.printBanner(logger, getVersion());
     logger.info("Booting up {} {}...", getVersion().getName(), getVersion().getVersion());
     console.setupStreams();
     pluginManager.registerPlugin(this.createVirtualPlugin());
@@ -289,6 +304,14 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
     );
     new GlistCommand(this).register();
     new SendCommand(this).register();
+    final BrigadierCommand paperProxyCommand = PaperProxyCommand.create(this);
+    commandManager.register(
+        commandManager.metaBuilder(paperProxyCommand)
+            .plugin(VelocityVirtualPlugin.INSTANCE)
+            .aliases("pp")
+            .build(),
+        paperProxyCommand
+    );
 
     this.doStartupConfigLoad();
 
@@ -395,9 +418,10 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
       }, "com", "velocitypowered", "proxy", "l10n");
     } catch (IOException e) {
       logger.error("Encountered an I/O error whilst loading translations", e);
-      return;
     }
-    GlobalTranslator.translator().addSource(translationRegistry);
+    // messages.yml wins over Velocity's own translations, see PaperProxyMessages#translator
+    messages.load();
+    GlobalTranslator.translator().addSource(messages.translator(translationRegistry));
   }
 
   @SuppressFBWarnings("DM_EXIT")
@@ -487,6 +511,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
     if (!newConfiguration.validate()) {
       return false;
     }
+    messages.load();
 
     // Re-register servers. If a server is being replaced or removed, make sure to note what
     // players need to move back to a fallback server.

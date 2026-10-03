@@ -1,0 +1,104 @@
+/*
+ * Copyright (C) 2026 PaperProxy Contributors
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+package net.paperstream.paperproxy.command;
+
+import com.mojang.brigadier.Command;
+import com.mojang.brigadier.context.CommandContext;
+import com.velocitypowered.api.command.BrigadierCommand;
+import com.velocitypowered.api.command.CommandSource;
+import com.velocitypowered.api.permission.Tristate;
+import com.velocitypowered.api.util.ProxyVersion;
+import com.velocitypowered.proxy.VelocityServer;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
+import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.minimessage.translation.Argument;
+import net.paperstream.paperproxy.PaperProxyBranding;
+
+/**
+ * Implements {@code /paperproxy} (alias {@code /pp}).
+ */
+public final class PaperProxyCommand {
+
+  private static final TextColor BRAND_COLOR = TextColor.color(0x3ad9cd);
+
+  private PaperProxyCommand() {
+    throw new AssertionError();
+  }
+
+  /**
+   * Creates the command.
+   *
+   * @param server the proxy
+   * @return the command
+   */
+  public static BrigadierCommand create(final VelocityServer server) {
+    return new BrigadierCommand(BrigadierCommand.literalArgumentBuilder("paperproxy")
+        // Everyone may see the version and the notice unless explicitly denied.
+        .requires(source -> source.getPermissionValue("paperproxy.command.info") != Tristate.FALSE)
+        .executes(ctx -> info(server, ctx))
+        .then(BrigadierCommand.literalArgumentBuilder("info")
+            .executes(ctx -> info(server, ctx)))
+        .then(BrigadierCommand.literalArgumentBuilder("reload")
+            .requires(source -> source.getPermissionValue("paperproxy.command.reload")
+                == Tristate.TRUE)
+            .executes(ctx -> reload(server, ctx)))
+        .build());
+  }
+
+  private static int info(final VelocityServer server, final CommandContext<CommandSource> ctx) {
+    final CommandSource source = ctx.getSource();
+    final ProxyVersion version = server.getVersion();
+
+    source.sendMessage(Component.text()
+        .content(version.getName() + " ")
+        .decoration(TextDecoration.BOLD, true)
+        .color(BRAND_COLOR)
+        .append(Component.text(version.getVersion()).decoration(TextDecoration.BOLD, false))
+        .hoverEvent(Component.translatable("velocity.command.version-offer-copy-version"))
+        .clickEvent(ClickEvent.copyToClipboard(version.getName() + " " + version.getVersion()))
+        .build());
+    source.sendMessage(Component.translatable("paperproxy.command.disclaimer"));
+    source.sendMessage(Component.translatable("paperproxy.command.based-on",
+        Argument.string("velocity_version", PaperProxyBranding.velocityVersion())));
+    source.sendMessage(Component.text()
+        .append(link("GitHub", PaperProxyBranding.REPOSITORY_URL))
+        .append(Component.text(" | ", NamedTextColor.DARK_GRAY))
+        .append(link("Discord", PaperProxyBranding.DISCORD_URL))
+        .build());
+    return Command.SINGLE_SUCCESS;
+  }
+
+  private static int reload(final VelocityServer server, final CommandContext<CommandSource> ctx) {
+    final boolean success = server.getMessages().load();
+    ctx.getSource().sendMessage(Component.translatable(success
+        ? "paperproxy.command.reload-success" : "paperproxy.command.reload-failure"));
+    return success ? Command.SINGLE_SUCCESS : 0;
+  }
+
+  private static Component link(final String label, final String url) {
+    return Component.text()
+        .content(label)
+        .color(NamedTextColor.GREEN)
+        .decoration(TextDecoration.UNDERLINED, true)
+        .clickEvent(ClickEvent.openUrl(url))
+        .build();
+  }
+}

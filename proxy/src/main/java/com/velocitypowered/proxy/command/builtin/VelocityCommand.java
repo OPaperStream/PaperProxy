@@ -17,8 +17,6 @@
 
 package com.velocitypowered.proxy.command.builtin;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.builder.ArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
@@ -31,26 +29,18 @@ import com.velocitypowered.api.permission.Tristate;
 import com.velocitypowered.api.plugin.PluginContainer;
 import com.velocitypowered.api.plugin.PluginDescription;
 import com.velocitypowered.api.proxy.ProxyServer;
-import com.velocitypowered.api.proxy.server.RegisteredServer;
 import com.velocitypowered.api.util.ProxyVersion;
 import com.velocitypowered.proxy.VelocityServer;
-import com.velocitypowered.proxy.util.InformationUtils;
-import java.io.BufferedWriter;
-import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.management.ManagementFactory;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
-import java.util.Collection;
 import java.util.Date;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -64,6 +54,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.translation.Argument;
+import net.paperstream.paperproxy.PaperProxyBranding;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -75,10 +66,6 @@ public final class VelocityCommand {
 
   @SuppressWarnings("checkstyle:MissingJavadocMethod")
   public static BrigadierCommand create(final VelocityServer server) {
-    final LiteralCommandNode<CommandSource> dump = BrigadierCommand.literalArgumentBuilder("dump")
-        .requires(source -> source.getPermissionValue("velocity.command.dump") == Tristate.TRUE)
-        .executes(new Dump(server))
-        .build();
     final LiteralCommandNode<CommandSource> heap = BrigadierCommand.literalArgumentBuilder("heap")
         .requires(source -> source.getPermissionValue("velocity.command.heap") == Tristate.TRUE)
         .executes(new Heap())
@@ -99,7 +86,7 @@ public final class VelocityCommand {
         .build();
 
     final List<LiteralCommandNode<CommandSource>> commands = List
-            .of(dump, heap, info, plugins, reload);
+            .of(heap, info, plugins, reload);
     return new BrigadierCommand(
       commands.stream()
         .reduce(
@@ -193,6 +180,10 @@ public final class VelocityCommand {
                 .build())
             .build();
         source.sendMessage(embellishment);
+      } else {
+        source.sendMessage(Component.translatable("paperproxy.command.disclaimer"));
+        source.sendMessage(Component.translatable("paperproxy.command.based-on",
+            Argument.string("velocity_version", PaperProxyBranding.velocityVersion())));
       }
       return Command.SINGLE_SUCCESS;
     }
@@ -267,62 +258,6 @@ public final class VelocityCommand {
               .color(NamedTextColor.GRAY)
               .hoverEvent(HoverEvent.showText(hoverText.build()))
               .build();
-    }
-  }
-
-  private record Dump(ProxyServer server) implements Command<CommandSource> {
-    private static final Logger logger = LogManager.getLogger(Dump.class);
-
-
-    @Override
-    public int run(final CommandContext<CommandSource> context) {
-      final CommandSource source = context.getSource();
-
-      final Collection<RegisteredServer> allServers = Set.copyOf(server.getAllServers());
-      final JsonObject servers = new JsonObject();
-      for (final RegisteredServer iter : allServers) {
-        servers.add(iter.getServerInfo().getName(),
-            InformationUtils.collectServerInfo(iter));
-      }
-      final JsonArray connectOrder = new JsonArray();
-      final List<String> attemptedConnectionOrder = List.copyOf(
-          server.getConfiguration().getAttemptConnectionOrder());
-      for (final String s : attemptedConnectionOrder) {
-        connectOrder.add(s);
-      }
-
-      final JsonObject proxyConfig = InformationUtils.collectProxyConfig(server.getConfiguration());
-      proxyConfig.add("servers", servers);
-      proxyConfig.add("connectOrder", connectOrder);
-      proxyConfig.add("forcedHosts",
-          InformationUtils.collectForcedHosts(server.getConfiguration()));
-
-      final JsonObject dump = new JsonObject();
-      dump.add("versionInfo", InformationUtils.collectProxyInfo(server.getVersion()));
-      dump.add("platform", InformationUtils.collectEnvironmentInfo());
-      dump.add("config", proxyConfig);
-      dump.add("plugins", InformationUtils.collectPluginInfo(server));
-
-      final Path dumpPath = Path.of("velocity-dump-"
-          + new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss").format(new Date())
-          + ".json");
-      try (final BufferedWriter bw = Files.newBufferedWriter(
-          dumpPath, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW)) {
-        bw.write(InformationUtils.toHumanReadableString(dump));
-
-        source.sendMessage(Component.text(
-            "An anonymised report containing useful information about "
-                + "this proxy has been saved at " + dumpPath.toAbsolutePath(),
-            NamedTextColor.GREEN));
-      } catch (IOException e) {
-        logger.error("Failed to complete dump command, "
-            + "the executor was interrupted: " + e.getMessage(), e);
-        source.sendMessage(Component.text(
-            "We could not save the anonymized dump. Check the console for more details.",
-            NamedTextColor.RED)
-        );
-      }
-      return Command.SINGLE_SUCCESS;
     }
   }
 

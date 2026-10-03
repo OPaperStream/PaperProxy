@@ -12,7 +12,16 @@ Velocity and Waterfall today.
 ## Status
 
 **Early development.** There is no release yet and nothing here is ready for production.
-The current code is the Velocity base; PaperProxy features are being added step by step.
+
+Done so far:
+
+- PaperProxy branding with a start banner that always shows the "not official" notice
+- `messages.yml`: every proxy message editable, MiniMessage and `&` codes, `{placeholders}`,
+  optional per-client-language files, automatic merge of new keys after updates
+- `/paperproxy` (alias `/pp`) with `info` and `reload`
+- Own bStats page
+
+Everything else listed below is planned.
 
 ## Planned features
 
@@ -36,19 +45,19 @@ The current code is the Velocity base; PaperProxy features are being added step 
 
 ## Building
 
-Requires Java 21.
+Requires Java 25 (same as current Velocity).
 
 ```bash
 ./gradlew build
 ```
 
-The proxy JAR ends up in `proxy/build/libs/`.
+The proxy JAR ends up in `proxy/build/libs/paperproxy-<version>.jar`.
 
 ## Metrics
 
 PaperProxy reports anonymous usage statistics to
 [bStats](https://bstats.org/plugin/server-implementation/PaperProxy/34471).
-They can be disabled in the proxy configuration.
+They can be disabled in `plugins/bStats/config.txt`.
 
 ## Community
 

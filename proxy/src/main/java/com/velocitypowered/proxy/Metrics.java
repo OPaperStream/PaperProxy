@@ -21,11 +21,14 @@ import com.velocitypowered.proxy.config.VelocityConfiguration;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bstats.MetricsBase;
+import org.bstats.charts.AdvancedPie;
 import org.bstats.charts.CustomChart;
 import org.bstats.charts.DrilldownPie;
 import org.bstats.charts.SimplePie;
@@ -69,7 +72,7 @@ public class Metrics {
 
     if (!config.didExistBefore()) {
       // Send an info message when the bStats config file gets created for the first time
-      logger.info("Velocity and some of its plugins collect metrics"
+      logger.info("PaperProxy and some of its plugins collect metrics"
           + " and send them to bStats (https://bStats.org).");
       logger.info("bStats collects some basic information for plugin"
           + " authors, like how many people use");
@@ -102,7 +105,9 @@ public class Metrics {
     private static final Logger logger = LogManager.getLogger(Metrics.class);
 
     static void startMetrics(VelocityServer server, VelocityConfiguration.Metrics metricsConfig) {
-      Metrics metrics = new Metrics(logger, 4752, metricsConfig.isEnabled());
+      // PaperProxy reports to its own "server implementation" page, never to Velocity's (4752):
+      // https://bstats.org/plugin/server-implementation/PaperProxy/34471
+      Metrics metrics = new Metrics(logger, 34471, metricsConfig.isEnabled());
 
       metrics.addCustomChart(
           new SingleLineChart("players", server::getPlayerCount)
@@ -114,8 +119,26 @@ public class Metrics {
           new SimplePie("online_mode",
               () -> server.getConfiguration().isOnlineMode() ? "online" : "offline")
       );
-      metrics.addCustomChart(new SimplePie("velocity_version",
+      metrics.addCustomChart(new SimplePie("paperproxy_version",
           () -> server.getVersion().getVersion()));
+      metrics.addCustomChart(new AdvancedPie("plugin_types", () -> {
+        // The proxy registers itself as plugin "velocity"; that one is not a real plugin.
+        final long velocityPlugins = server.getPluginManager().getPlugins().stream()
+            .filter(plugin -> !plugin.getDescription().getId().equals("velocity"))
+            .count();
+        return Map.of("Velocity", (int) velocityPlugins);
+      }));
+      metrics.addCustomChart(new AdvancedPie("forwarding_modes", () -> Map.of(
+          server.getConfiguration().getPlayerInfoForwardingMode().name()
+              .toLowerCase(Locale.ROOT), 1)));
+      metrics.addCustomChart(new AdvancedPie("client_versions", () -> {
+        final Map<String, Integer> versions = new HashMap<>();
+        server.getAllPlayers().forEach(player -> versions.merge(
+            player.getProtocolVersion().getMostRecentSupportedVersion(), 1, Integer::sum));
+        return versions;
+      }));
+      metrics.addCustomChart(new SimplePie("via_on_proxy",
+          () -> server.getPluginManager().isLoaded("viaversion") ? "yes" : "no"));
 
       metrics.addCustomChart(new DrilldownPie("java_version", () -> {
         Runtime.Version version = Runtime.version();

@@ -1,0 +1,62 @@
+# PaperProxy messages - German
+#
+# Only used when per-client-language is true in messages.yml.
+# Keys missing here fall back to messages.yml.
+
+prefix: "<gradient:#3ad9cd:#8df3e4>PaperProxy</gradient> <dark_gray>»</dark_gray> "
+
+velocity:
+  error:
+    already-connected: "Du bist bereits mit diesem Server verbunden!"
+    already-connected-proxy: "Du bist bereits mit diesem Proxy verbunden!"
+    already-connecting: "Du versuchst dich bereits mit einem Server zu verbinden!"
+    cant-connect: "Kein Verbindungsaufbau zu {server} möglich: {reason}"
+    connecting-server-error: "Kein Verbindungsaufbau zu {server} möglich. Bitte versuche es später erneut."
+    connected-server-error: "Bei der Verbindung zu {server} ist ein Problem aufgetreten."
+    internal-server-connection-error: "Bei der Verbindung mit dem Server ist ein interner Fehler aufgetreten."
+    logging-in-too-fast: "Du meldest dich zu schnell an, versuche es später noch einmal."
+    online-mode-only: "Du bist nicht in deinem Minecraft Konto eingeloggt. Wenn du in deinem Minecraft Konto eingeloggt bist, versuche deinen Minecraft Client neu zu starten."
+    player-connection-error: "Bei deiner Verbindung ist ein interner Fehler aufgetreten."
+    plugin-message-overflow: "Du hast zu viele Plugin-Nachrichten gesendet, bevor die Verbindung aufgebaut war."
+    modern-forwarding-needs-new-client: "Dieser Server ist nur mit der Minecraft Version 1.13 und höher kompatibel."
+    modern-forwarding-failed: "Dein Server hat keine Weiterleitungsanforderung an den Proxy gesendet. Stelle sicher, dass der Server für die Velocity Weiterleitung konfiguriert ist."
+    moved-to-new-server: "Du wurdest von {server} vom Server geworfen: {reason}"
+    no-available-servers: "Es gibt keine verfügbaren Server mit denen du dich verbinden kannst. Versuche es später erneut oder kontaktiere einen Admin."
+    illegal-chat-characters: "Ungültige Zeichen im Chat"
+  command:
+    generic-error: "Beim Ausführen des Befehls ist ein Fehler aufgetreten."
+    command-does-not-exist: "Dieser Befehl existiert nicht."
+    players-only: "Nur Spieler können diesen Befehl ausführen."
+    server-does-not-exist: "Der angegebene Server {server} existiert nicht."
+    player-not-found: "Der angegebene Spieler {player} existiert nicht."
+    server-current-server: "Du bist derzeit mit {server} verbunden."
+    server-too-many: "Es sind zu viele Server eingerichtet. Verwende die Tabvervollständigung, um alle verfügbaren Server aufzulisten."
+    server-available: "Verfügbare Server:"
+    server-tooltip-player-online: "{count} Spieler online"
+    server-tooltip-players-online: "{count} Spieler online"
+    server-tooltip-current-server: "Du bist derzeit mit diesem Server verbunden"
+    server-tooltip-offer-connect-server: "Klicke, um dich mit diesem Server zu verbinden"
+    glist-player-singular: "{count} Spieler ist derzeit mit dem Proxy verbunden."
+    glist-player-plural: "{count} Spieler sind derzeit mit dem Proxy verbunden."
+    glist-view-all: "Um alle Spieler auf Servern aufzulisten, verwende /glist all."
+    reload-success: "Proxy-Konfiguration erfolgreich neu geladen."
+    reload-failure: "Die Proxy-Konfiguration konnte nicht neu geladen werden. Prüfe die Konsole für weitere Details."
+    version-copyright: "Copyright 2018-{year} {vendor}. {name} ist lizenziert unter den Bedingungen der GNU General Public License v3."
+    version-offer-copy-version: "Klicke, um die Version zu kopieren"
+    no-plugins: "Es sind derzeit keine Plugins installiert."
+    plugins-list: "Plugins: {plugins}"
+    plugin-tooltip-website: "Webseite: {url}"
+    plugin-tooltip-author: "Entwickler: {author}"
+    plugin-tooltip-authors: "Entwickler: {authors}"
+    send-usage: "/send <spieler> <server>"
+  kick:
+    shutdown: "Proxy fährt herunter."
+    command-rate-limit: "Du sendest zu viele Befehle zu schnell."
+    tab-complete-rate-limit: "Du sendest zu viele Tab-Vervollständigungen zu schnell."
+
+paperproxy:
+  command:
+    disclaimer: "<red>Kein offizielles Paper-Projekt. PaperProxy steht in keiner Verbindung zu PaperMC."
+    based-on: "<gray>Basiert auf Velocity {velocity_version}, lizenziert unter der GNU GPL v3."
+    reload-success: "{prefix}<green>Nachrichten neu geladen."
+    reload-failure: "{prefix}<red>Die Nachrichten konnten nicht neu geladen werden. Details in der Konsole."

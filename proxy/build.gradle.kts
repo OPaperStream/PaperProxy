@@ -1,11 +1,9 @@
 import com.github.jengelman.gradle.plugins.shadow.transformers.Log4j2PluginsCacheFileTransformer
-import io.papermc.fill.model.BuildChannel
 
 plugins {
     application
     id("velocity-init-manifest")
     alias(libs.plugins.shadow)
-    alias(libs.plugins.fill)
 }
 
 application {
@@ -20,13 +18,23 @@ tasks {
 
     jar {
         manifest {
-            attributes["Implementation-Title"] = "Velocity"
-            attributes["Implementation-Vendor"] = "Velocity Contributors"
+            attributes["Implementation-Title"] = "PaperProxy"
+            attributes["Implementation-Vendor"] = "PaperProxy Contributors"
             attributes["Multi-Release"] = "true"
         }
     }
 
+    processResources {
+        val velocityVersion = project.property("velocityVersion") as String
+        inputs.property("velocityVersion", velocityVersion)
+        filesMatching("paperproxy/build.properties") {
+            expand("velocityVersion" to velocityVersion)
+        }
+    }
+
     shadowJar {
+        archiveBaseName.set("paperproxy")
+        archiveClassifier.set("")
         filesMatching("META-INF/org/apache/logging/log4j/core/config/plugins/**") {
             duplicatesStrategy = DuplicatesStrategy.INCLUDE
         }
@@ -61,28 +69,6 @@ tasks {
                 "-Alog4j.graalvm.artifactId=${project.name}"
             )
         )
-    }
-}
-
-val projectVersion = version as String
-fill {
-    project("velocity")
-
-    build {
-        channel = BuildChannel.STABLE
-        versionFamily("4.0.0")
-        version(projectVersion)
-
-        if (versionFamily.get().split(".")[0] != projectVersion.split(".")[0]) {
-            throw IllegalArgumentException("Version family does not match project version")
-        }
-
-        downloads {
-            register("server:default") {
-                file = tasks.shadowJar.flatMap { it.archiveFile }
-                nameResolver.set { project, _, version, build -> "$project-$version-$build.jar" }
-            }
-        }
     }
 }
 
