@@ -113,7 +113,9 @@ Requires Java 25 (same as current Velocity).
 ./gradlew build
 ```
 
-- Proxy: `proxy/build/libs/paperproxy-<version>.jar`
+- Proxy: `proxy/build/libs/paperproxy-<version>.jar` (about 2 MB). On first start it downloads
+  its libraries into `libraries/` and checks every file against its SHA-256.
+- Offline variant with everything inside: `proxy/build/libs/paperproxy-<version>-full.jar`
 - Backend plugin: `bridge/build/libs/PaperProxy-Bridge-<version>.jar`
 
 ## Metrics

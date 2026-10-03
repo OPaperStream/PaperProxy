@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.jar.JarFile;
+import net.paperstream.paperproxy.libraries.Libraries;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -41,6 +42,7 @@ public final class BungeeLayerBootstrap {
 
   private static final Logger logger = LogManager.getLogger(BungeeLayerBootstrap.class);
   private static final String LAYER_RESOURCE = "/paperproxy/bungee-layer.jar";
+  private static final String LIBRARIES_RESOURCE = "/paperproxy/bungee-libraries.list";
   private static final String LAYER_CLASS = "net.paperstream.paperproxy.bungee.layer.BungeeLayer";
 
   private BungeeLayerBootstrap() {
@@ -92,10 +94,21 @@ public final class BungeeLayerBootstrap {
     logger.info("Found {} BungeeCord plugin(s), starting the BungeeCord compatibility layer",
         jars.size());
     try {
-      final Path layerJar = extractLayer();
+      final List<URL> urls = new ArrayList<>();
+      // The layer jar comes first so its patched PluginClassloader wins over bungeecord-api's.
+      urls.add(extractLayer().toUri().toURL());
+      try (InputStream list = BungeeLayerBootstrap.class.getResourceAsStream(LIBRARIES_RESOURCE)) {
+        // Small PaperProxy jar: the BungeeCord API and its libraries are downloaded now.
+        // The -full jar has them inside the layer jar and no list.
+        if (list != null) {
+          for (final Path library : Libraries.ensure(list)) {
+            urls.add(library.toUri().toURL());
+          }
+        }
+      }
       // Deliberately not closed: the layer lives as long as the proxy.
       final URLClassLoader loader = new URLClassLoader("paperproxy-bungee",
-          new URL[] {layerJar.toUri().toURL()}, VelocityServer.class.getClassLoader());
+          urls.toArray(new URL[0]), VelocityServer.class.getClassLoader());
       final Object layer = loader.loadClass(LAYER_CLASS)
           .getConstructor(VelocityServer.class, Path.class, List.class)
           .newInstance(server, pluginsDirectory, List.copyOf(jars));

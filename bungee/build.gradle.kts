@@ -1,3 +1,6 @@
+import java.security.MessageDigest
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+
 plugins {
     alias(libs.plugins.shadow)
 }
@@ -44,3 +47,33 @@ tasks {
         duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     }
 }
+
+// Thin variant for the small PaperProxy jar: only the layer's own classes; the BungeeCord API and
+// its libraries are listed with their SHA-256 and downloaded when a BungeeCord plugin is present.
+val thinJar = tasks.register<Jar>("thinJar") {
+    archiveBaseName.set("paperproxy-bungee-layer")
+    archiveClassifier.set("thin")
+    from(sourceSets.main.get().output)
+}
+
+val libraryList = tasks.register("libraryList") {
+    val output = layout.buildDirectory.file("generated/paperproxy/bungee-libraries.list")
+    val runtime = configurations.runtimeClasspath
+    inputs.files(runtime)
+    outputs.file(output)
+    doLast {
+        val lines = mutableListOf("# group:artifact:version:classifier:extension sha256")
+        runtime.get().resolvedConfiguration.resolvedArtifacts
+            .filter { it.id.componentIdentifier is ModuleComponentIdentifier }
+            // The patched PluginClassloader must come first; bungeecord-api is listed after it.
+            .forEach { artifact ->
+                val id = artifact.moduleVersion.id
+                val digest = MessageDigest.getInstance("SHA-256").digest(artifact.file.readBytes())
+                    .joinToString("") { "%02x".format(it) }
+                lines += "${id.group}:${id.name}:${id.version}:${artifact.classifier ?: ""}:" +
+                    "${artifact.extension} $digest"
+            }
+        output.get().asFile.writeText(lines.joinToString("\n", postfix = "\n"))
+    }
+}
+

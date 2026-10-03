@@ -1,3 +1,5 @@
+import java.security.MessageDigest
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
 import com.github.jengelman.gradle.plugins.shadow.transformers.Log4j2PluginsCacheFileTransformer
 
 plugins {
@@ -33,8 +35,9 @@ tasks {
     }
 
     shadowJar {
+        // Everything in one jar, for servers without internet access.
         archiveBaseName.set("paperproxy")
-        archiveClassifier.set("")
+        archiveClassifier.set("full")
 
         // The BungeeCord layer ships as a nested jar, loaded in its own class loader on demand.
         val bungeeLayer = project(":paperproxy-bungee").tasks.named("shadowJar")
@@ -78,6 +81,93 @@ tasks {
             )
         )
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// PaperProxy: small launcher jar. It contains PaperProxy's own code ("core") and a list of all
+// libraries with their SHA-256; the launcher downloads them on first start.
+
+val launcher: SourceSet = sourceSets.create("launcher")
+
+tasks.named<JavaCompile>("compileLauncherJava") {
+    // Java 8 so that a too old Java gets a readable message instead of a class version error.
+    options.release.set(8)
+    options.compilerArgs.add("-Xlint:-options")
+}
+
+val coreJar = tasks.register<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("coreJar") {
+    archiveBaseName.set("paperproxy-core")
+    archiveClassifier.set("")
+    from(sourceSets.main.get().output)
+    configurations = listOf(project.configurations.runtimeClasspath.get())
+    // Only PaperProxy's own modules (and bStats, which must stay relocated) go into the core;
+    // every other library is downloaded by the launcher.
+    dependencies {
+        exclude { dep ->
+            !(dep.moduleGroup == "com.velocitypowered" || dep.moduleGroup == "org.bstats")
+        }
+    }
+    relocate("org.bstats", "com.velocitypowered.proxy.bstats")
+    exclude("org/checkerframework/checker/**")
+    // Thin BungeeCord layer; its libraries are downloaded only when a BungeeCord plugin exists.
+    from(project(":paperproxy-bungee").tasks.named("thinJar")) {
+        into("paperproxy")
+        rename { "bungee-layer.jar" }
+    }
+    from(project(":paperproxy-bungee").tasks.named("libraryList")) {
+        into("paperproxy")
+    }
+    val configurateBuildTask = project(":deprecated-configurate3").tasks.named("shadowJar")
+    dependsOn(configurateBuildTask)
+    from(zipTree(configurateBuildTask.map { it.outputs.files.singleFile }))
+    manifest {
+        from(tasks.jar.get().manifest)
+    }
+}
+
+val libraryList = tasks.register("libraryList") {
+    val output = layout.buildDirectory.file("generated/paperproxy/libraries.list")
+    val runtime = project.configurations.runtimeClasspath
+    inputs.files(runtime)
+    outputs.file(output)
+    doLast {
+        val lines = mutableListOf("# group:artifact:version:classifier:extension sha256")
+        runtime.get().resolvedConfiguration.resolvedArtifacts
+            .filter { it.id.componentIdentifier is ModuleComponentIdentifier }
+            .filter { it.moduleVersion.id.group !in setOf("com.velocitypowered", "org.bstats") }
+            .sortedBy { it.id.componentIdentifier.displayName + (it.classifier ?: "") }
+            .forEach { artifact ->
+                val id = artifact.moduleVersion.id
+                val digest = MessageDigest.getInstance("SHA-256")
+                    .digest(artifact.file.readBytes())
+                    .joinToString("") { "%02x".format(it) }
+                lines += "${id.group}:${id.name}:${id.version}:${artifact.classifier ?: ""}:" +
+                    "${artifact.extension} $digest"
+            }
+        output.get().asFile.writeText(lines.joinToString("\n", postfix = "\n"))
+    }
+}
+
+val launcherJar = tasks.register<Jar>("launcherJar") {
+    archiveBaseName.set("paperproxy")
+    archiveClassifier.set("")
+    from(launcher.output)
+    from(coreJar) {
+        into("META-INF/paperproxy")
+        rename { "core.jar" }
+    }
+    from(libraryList) {
+        into("META-INF/paperproxy")
+    }
+    manifest {
+        attributes["Main-Class"] = "net.paperstream.paperproxy.launcher.Launcher"
+        attributes["Enable-Native-Access"] = "ALL-UNNAMED"
+        attributes["Implementation-Title"] = "PaperProxy"
+    }
+}
+
+tasks.named("assemble") {
+    dependsOn(launcherJar)
 }
 
 dependencies {

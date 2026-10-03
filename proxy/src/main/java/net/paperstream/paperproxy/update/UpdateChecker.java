@@ -186,7 +186,8 @@ public final class UpdateChecker {
         }
         String jar = null;
         for (final String name : assets.keySet()) {
-          if (name.startsWith("paperproxy-") && name.endsWith(".jar")) {
+          if (name.startsWith("paperproxy-") && name.endsWith(".jar")
+              && !name.endsWith("-full.jar")) {
             jar = name;
           }
         }
@@ -257,8 +258,10 @@ public final class UpdateChecker {
       return;
     }
     try {
-      final Path running = Path.of(UpdateChecker.class.getProtectionDomain().getCodeSource()
-          .getLocation().toURI());
+      // Started through the small launcher jar: replace that one, not the extracted core.
+      final String launcher = System.getProperty("paperproxy.launcherJar");
+      final Path running = launcher != null ? Path.of(launcher)
+          : Path.of(UpdateChecker.class.getProtectionDomain().getCodeSource().getLocation().toURI());
       if (!Files.isRegularFile(running)) {
         return;
       }
