@@ -20,7 +20,8 @@ extensions.configure<SpotlessExtension> {
     // PaperProxy additions carry their own header.
     format("paperproxyJava", com.diffplug.gradle.spotless.JavaExtension::class.java) {
         target("src/*/java/net/paperstream/**/*.java")
-        licenseHeaderFile(rootProject.file("HEADER-PAPERPROXY.txt"))
+        licenseHeaderFile(rootProject.file(
+            if (project.name == "velocity-api") "HEADER-PAPERPROXY-API.txt" else "HEADER-PAPERPROXY.txt"))
         removeUnusedImports()
     }
 }

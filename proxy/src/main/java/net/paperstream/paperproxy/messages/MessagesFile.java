@@ -119,20 +119,34 @@ final class MessagesFile {
       return new Result(user, List.of(), List.of(), null);
     }
 
+    // Keys in sections the template does not have (e.g. "myplugin:") belong to plugins and are
+    // kept. Unknown keys inside PaperProxy's own sections are outdated and dropped.
+    final java.util.Set<String> templateSections = new java.util.HashSet<>();
+    for (final String key : defaults.keySet()) {
+      templateSections.add(key.split("\\.", 2)[0]);
+    }
     final List<String> dropped = new ArrayList<>();
-    for (final String key : user.keySet()) {
-      if (!defaults.containsKey(key)) {
+    final Map<String, String> kept = new LinkedHashMap<>();
+    for (final Map.Entry<String, String> entry : user.entrySet()) {
+      final String key = entry.getKey();
+      if (defaults.containsKey(key)) {
+        continue;
+      }
+      if (templateSections.contains(key.split("\\.", 2)[0])) {
         dropped.add(key);
+      } else {
+        kept.put(key, entry.getValue());
       }
     }
 
     final Path backup = file.resolveSibling(file.getFileName() + ".backup-"
         + LocalDateTime.now().format(BACKUP_STAMP));
     Files.copy(file, backup, StandardCopyOption.REPLACE_EXISTING);
-    Files.writeString(file, render(template, user), StandardCharsets.UTF_8);
+    Files.writeString(file, render(template, user) + renderExtra(kept), StandardCharsets.UTF_8);
 
     final Map<String, String> merged = new LinkedHashMap<>(defaults);
     merged.putAll(user);
+    merged.keySet().removeAll(dropped);
     return new Result(merged, added, dropped, backup);
   }
 
@@ -219,6 +233,37 @@ final class MessagesFile {
     // split(-1) produced one empty trailing element for the final newline
     out.setLength(out.length() - 1);
     return out.toString();
+  }
+
+  /**
+   * Writes keys of own sections (plugins) back as nested YAML.
+   */
+  static String renderExtra(final Map<String, String> extra) {
+    if (extra.isEmpty()) {
+      return "";
+    }
+    final Map<String, Object> tree = new LinkedHashMap<>();
+    for (final Map.Entry<String, String> entry : extra.entrySet()) {
+      final String[] parts = entry.getKey().split("\\.");
+      Map<String, Object> node = tree;
+      for (int i = 0; i < parts.length - 1; i++) {
+        final Object child = node.computeIfAbsent(parts[i], k -> new LinkedHashMap<String, Object>());
+        if (!(child instanceof Map<?, ?>)) {
+          break;
+        }
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> next = (Map<String, Object>) child;
+        node = next;
+      }
+      node.put(parts[parts.length - 1], entry.getValue());
+    }
+    final org.yaml.snakeyaml.DumperOptions options = new org.yaml.snakeyaml.DumperOptions();
+    options.setDefaultFlowStyle(org.yaml.snakeyaml.DumperOptions.FlowStyle.BLOCK);
+    options.setDefaultScalarStyle(org.yaml.snakeyaml.DumperOptions.ScalarStyle.DOUBLE_QUOTED);
+    options.setIndent(2);
+    options.setWidth(Integer.MAX_VALUE);
+    return "\n# Your own sections (for example from plugins)\n"
+        + new Yaml(options).dump(tree).replaceAll("\"([A-Za-z0-9_-]+)\":", "$1:");
   }
 
   static String quote(final String value) {

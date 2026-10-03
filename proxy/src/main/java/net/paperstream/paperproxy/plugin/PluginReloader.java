@@ -40,6 +40,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import net.paperstream.paperproxy.api.event.PluginRuntimeChangeEvent;
 import net.paperstream.paperproxy.bungee.BungeeLayerBootstrap;
 import net.paperstream.paperproxy.bungee.BungeeLayerHandle;
 import org.apache.logging.log4j.LogManager;
@@ -162,7 +163,7 @@ public final class PluginReloader {
           logger.error("Could not unload {}", bungeeName.get(), e);
           return new Outcome(false, "paperproxy.plugin.failed", bungeeName.get(), e.toString());
         }
-        changed();
+        changed(bungeeName.get(), false);
         return new Outcome(true, "paperproxy.plugin.unloaded", bungeeName.get(), file.toString());
       }
     }
@@ -216,7 +217,7 @@ public final class PluginReloader {
       }
     }
     scheduleLeakCheck(description.getId(), loader);
-    changed();
+    changed(description.getId(), false);
     return new Outcome(true, "paperproxy.plugin.unloaded", description.getId(),
         source.get().toString());
   }
@@ -232,7 +233,7 @@ public final class PluginReloader {
       }
       try {
         final String name = bungee.loadPlugin(jar);
-        changed();
+        changed(name, true);
         return new Outcome(true, "paperproxy.plugin.loaded", name, millis(started));
       } catch (final Exception e) {
         logger.error("Could not load {}", jar.getFileName(), e);
@@ -246,7 +247,7 @@ public final class PluginReloader {
       server.getEventManager().registerInternally(container, instance);
       server.getEventManager().fireOnly(container, new ProxyInitializeEvent())
           .get(30, TimeUnit.SECONDS);
-      changed();
+      changed(container.getDescription().getId(), true);
       return new Outcome(true, "paperproxy.plugin.loaded", container.getDescription().getId(),
           millis(started));
     } catch (final Exception e) {
@@ -265,8 +266,9 @@ public final class PluginReloader {
     return out;
   }
 
-  private void changed() {
+  private void changed(final String plugin, final boolean loaded) {
     final int count = changes.incrementAndGet();
+    server.getEventManager().fireAndForget(new PluginRuntimeChangeEvent(plugin, loaded));
     logger.warn("Plugins were changed at runtime {} time(s) since start. If anything behaves "
         + "oddly, restart the proxy before reporting a bug.", count);
   }

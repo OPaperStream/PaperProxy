@@ -106,7 +106,9 @@ import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.translation.MiniMessageTranslationStore;
 import net.kyori.adventure.translation.GlobalTranslator;
+import net.paperstream.paperproxy.PaperProxyApi;
 import net.paperstream.paperproxy.PaperProxyBranding;
+import net.paperstream.paperproxy.api.PaperProxyProvider;
 import net.paperstream.paperproxy.bridge.BridgeReports;
 import net.paperstream.paperproxy.bungee.BungeeLayerBootstrap;
 import net.paperstream.paperproxy.bungee.BungeeLayerHandle;
@@ -374,6 +376,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
       "console", "cm", "configuration"})
   void start() {
     PaperProxyBranding.printBanner(logger, getVersion());
+    PaperProxyProvider.set(new PaperProxyApi(this));
     logger.info("Booting up {} {}...", getVersion().getName(), getVersion().getVersion());
     console.setupStreams();
     pluginManager.registerPlugin(this.createVirtualPlugin());

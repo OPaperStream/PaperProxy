@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.translation.Argument;
+import net.paperstream.paperproxy.api.event.BackendHealthChangeEvent;
 import net.paperstream.paperproxy.config.PaperProxyConfig;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -128,6 +129,8 @@ public final class HealthChecker {
       }
       return;
     }
+    server.getEventManager().fireAndForget(new BackendHealthChangeEvent(name,
+        status == Status.ONLINE));
     final String key = status == Status.ONLINE ? "paperproxy.health.up" : "paperproxy.health.down";
     if (status == Status.ONLINE) {
       logger.info("Server {} is back online", name);

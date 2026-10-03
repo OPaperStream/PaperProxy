@@ -36,6 +36,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.translation.Argument;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.kyori.adventure.translation.GlobalTranslator;
+import net.paperstream.paperproxy.api.event.ClientVersionDeniedEvent;
 import net.paperstream.paperproxy.config.PaperProxyConfig;
 import net.paperstream.paperproxy.config.VersionRange;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -165,6 +166,8 @@ public final class NetworkRules {
     final VersionRange range = values.versions().get(name.toLowerCase(Locale.ROOT));
     final ProtocolVersion version = player.getProtocolVersion();
     if (range != null && !range.contains(version)) {
+      server.getEventManager().fireAndForget(new ClientVersionDeniedEvent(player, name,
+          range.text()));
       return Component.translatable("paperproxy.versions.denied",
           Argument.string("server", name),
           Argument.string("versions", range.text()),

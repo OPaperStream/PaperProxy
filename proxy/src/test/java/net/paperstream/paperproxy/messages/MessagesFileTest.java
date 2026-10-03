@@ -87,6 +87,7 @@ class MessagesFileTest {
 
     assertEquals(List.of("prefix", "velocity.error.two", "paperproxy.three"), result.addedKeys());
     assertEquals(List.of("velocity.error.custom"), result.droppedKeys());
+    assertEquals(null, result.values().get("velocity.error.custom"));
     assertNotNull(result.backup());
     assertEquals(old, Files.readString(result.backup()));
 
@@ -97,9 +98,30 @@ class MessagesFileTest {
     assertEquals("Mine \"quoted\"", reread.get("velocity.error.one"));
     assertEquals("Two {server}", reread.get("velocity.error.two"));
     assertEquals("true", reread.get("enabled"));
-    assertEquals(reread, result.values().entrySet().stream()
-        .filter(e -> !e.getKey().equals("velocity.error.custom"))
-        .collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+    assertEquals(reread, result.values());
+  }
+
+  @Test
+  void pluginSectionsSurviveUpdates() throws Exception {
+    final Path file = dir.resolve("messages.yml");
+    Files.writeString(file, """
+        velocity:
+          error:
+            one: "Mine"
+            obsolete: "old key"
+        myplugin:
+          welcome: "Hi {player}"
+          nested:
+            deep: "x"
+        """);
+    final MessagesFile.Result result = MessagesFile.load(file, TEMPLATE);
+    assertEquals(List.of("velocity.error.obsolete"), result.droppedKeys());
+    final Map<String, String> reread = MessagesFile.parse(Files.readString(file), "test");
+    assertEquals("Hi {player}", reread.get("myplugin.welcome"));
+    assertEquals("x", reread.get("myplugin.nested.deep"));
+    assertEquals("Mine", reread.get("velocity.error.one"));
+    assertEquals(null, reread.get("velocity.error.obsolete"));
+    assertEquals("Hi {player}", result.values().get("myplugin.welcome"));
   }
 
   @Test
