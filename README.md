@@ -162,6 +162,8 @@ They can be disabled in `plugins/bStats/config.txt`.
 
 Questions and feedback: [Discord](https://dc.gg/paperstream)
 
+Mirror: [Codeberg](https://codeberg.org/LucasTHCR/PaperProxy)
+
 ## Credits and license
 
 PaperProxy is based on [Velocity](https://github.com/PaperMC/Velocity) by the Velocity
