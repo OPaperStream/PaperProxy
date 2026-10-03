@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" width="1200" height="360">
+ <rect width="1200" height="360" rx="40" fill="#0b1b2e"/>
+ <g transform="translate(40,40) scale(0.546875)">
+ <defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="0.35" y2="1">
+   <stop offset="0" stop-color="#16436f"/><stop offset="1" stop-color="#04162a"/>
+  </linearGradient>
+  <linearGradient id="out" gradientUnits="userSpaceOnUse" x1="300" y1="0" x2="440" y2="0">
+   <stop offset="0" stop-color="#3ad9cd"/><stop offset="1" stop-color="#ffffff"/>
+  </linearGradient>
+  <linearGradient id="gate" x1="0" y1="0" x2="0" y2="1">
+   <stop offset="0" stop-color="#8df3e4"/><stop offset="1" stop-color="#0c7f85"/>
+  </linearGradient>
+ </defs>
+ <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+ <g fill="none" stroke-linecap="round">
+  <path d="M70 150 C 150 150, 170 256, 236 256" stroke="#3ad9cd" stroke-width="30" opacity="0.9"/>
+  <path d="M70 362 C 150 362, 170 256, 236 256" stroke="#8df3e4" stroke-width="30" opacity="0.65"/>
+  <path d="M300 256 L 420 256" stroke="url(#out)" stroke-width="34"/>
+ </g>
+ <path d="M420 206 L470 256 L420 306 Z" fill="#ffffff"/>
+ <rect x="226" y="166" width="84" height="180" rx="22" fill="url(#gate)"/>
+ <rect x="248" y="196" width="40" height="120" rx="10" fill="#04162a" opacity="0.35"/>
+</g>
+ <text x="360" y="178" font-family="Noto Sans" font-weight="900" font-size="132" fill="#ffffff">Paper<tspan fill="#3ad9cd">Proxy</tspan></text>
+ <text x="364" y="232" font-family="Noto Sans" font-weight="500" font-size="32" fill="#8fb3cf">Velocity and BungeeCord plugins on one proxy</text>
+ <rect x="362" y="262" width="652" height="54" rx="12" fill="none" stroke="#ff6b6b" stroke-width="3"/>
+ <text x="688" y="299" text-anchor="middle" font-family="Noto Sans" font-weight="800" font-size="27" letter-spacing="2" fill="#ff6b6b">NOT AFFILIATED WITH PAPERMC</text>
+</svg>

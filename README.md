@@ -1,44 +1,63 @@
-# Velocity
+<p align="center">
+  <img src="assets/logo.png" alt="PaperProxy" width="600">
+</p>
 
-[![Build Status](https://img.shields.io/github/actions/workflow/status/PaperMC/Velocity/gradle.yml)](https://papermc.io/downloads/velocity)
-[![Join our Discord](https://img.shields.io/discord/289587909051416579.svg?logo=discord&label=)](https://discord.gg/papermc)
+> **NOT AN OFFICIAL PAPER PROJECT.** PaperProxy is not affiliated with or endorsed by
+> PaperMC. It is an independent fork of [Velocity](https://github.com/PaperMC/Velocity).
 
-A Minecraft server proxy with unparalleled server support, scalability,
-and flexibility.
+PaperProxy is a Minecraft proxy that runs **Velocity plugins** and **BungeeCord/Waterfall
+plugins** side by side on one proxy, and fixes the things that annoy server owners about
+Velocity and Waterfall today.
 
-Velocity is licensed under the GPLv3 license.
+## Status
 
-## Goals
+**Early development.** There is no release yet and nothing here is ready for production.
+The current code is the Velocity base; PaperProxy features are being added step by step.
 
-* A codebase that is easy to dive into and consistently follows best practices
-  for Java projects as much as reasonably possible.
-* High performance: handle thousands of players on one proxy.
-* A new, refreshing API built from the ground up to be flexible and powerful
-  whilst avoiding design mistakes and suboptimal designs from other proxies.
-* First-class support for Paper, Sponge, Fabric and Forge. (Other implementations
-  may work, but we make every endeavor to support these server implementations
-  specifically.)
-  
+## Planned features
+
+- **Velocity and BungeeCord plugins together.** Bungee plugins load through a built-in
+  compatibility layer based on the original BungeeCord API.
+- **Forwarding per server.** Mix `modern`, `paperguard` and `legacy` backends in one network.
+- **PaperGuard.** Replay-proof, signed player forwarding for servers that cannot use modern
+  forwarding (including 1.8), with a backend bridge plugin. Fail-closed by design.
+- **messages.yml.** Every message the proxy shows is editable in one file
+  (MiniMessage and `&` color codes).
+- **Plugin reload, load and unload** without restarting, with leak detection and a clear
+  warning that it is experimental.
+- **Fully async.** Per-player event queues, Virtual Threads for blocking plugin code and a
+  watchdog that names slow plugins.
+- **ViaVersion integration.** Installer, version rules per server and a warning when Via runs
+  on both proxy and backend.
+- **Health checks, maintenance mode** and the commands Velocity is missing
+  (`/alert`, `/find`, `/send`, `/ip`).
+- **Update notifications** and an optional auto-updater (off by default, signed releases).
+- **A small API** that feels like Velocity and Bungee, so there is nothing new to learn.
+
 ## Building
 
-Velocity is built with [Gradle](https://gradle.org). We recommend using the
-wrapper script (`./gradlew`) as our CI builds using it.
+Requires Java 21.
 
-It is sufficient to run `./gradlew build` to run the full build cycle.
+```bash
+./gradlew build
+```
 
-## Running
+The proxy JAR ends up in `proxy/build/libs/`.
 
-Once you've built Velocity, you can copy and run the `-all` JAR from
-`proxy/build/libs`. Velocity will generate a default configuration file
-and you can configure it from there.
+## Metrics
 
-Alternatively, you can get the proxy JAR from the [downloads](https://papermc.io/downloads/velocity)
-page.
+PaperProxy reports anonymous usage statistics to
+[bStats](https://bstats.org/plugin/server-implementation/PaperProxy/34471).
+They can be disabled in the proxy configuration.
 
-# Localisation
+## Community
 
-Translations are handled using [Crowdin](https://papermc-io.crowdin.com/velocity).
-If you want to translate a language not available on Crowdin,
-you might want to ask in the [Discord](https://discord.gg/papermc) about it.
+Questions and feedback: [Discord](https://dc.gg/paperstream)
 
-[![CI powered by namespace badge](https://papermc.io/assets/misc/namespace-oss-badge.svg?project=velocity)](https://namespace.so/github-actions/?utm_source=oss&utm_campaign=papermc)
+## Credits and license
+
+PaperProxy is based on [Velocity](https://github.com/PaperMC/Velocity) by the Velocity
+contributors and PaperMC. "Paper" and "Velocity" are names of PaperMC projects; PaperProxy
+is not one of them.
+
+Licensed under the [GNU General Public License v3.0](LICENSE), like Velocity.
