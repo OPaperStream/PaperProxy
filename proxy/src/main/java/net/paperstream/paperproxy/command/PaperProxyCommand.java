@@ -78,6 +78,7 @@ public final class PaperProxyCommand {
                     .suggests(PaperProxyCommand.serverSuggestions(server))
                     .executes(ctx -> maintenance(server, ctx,
                         StringArgumentType.getString(ctx, "server"), false)))))
+        .then(PluginCommand.create(server))
         .then(BrigadierCommand.literalArgumentBuilder("servers")
             .requires(source -> source.getPermissionValue("paperproxy.command.servers")
                 == Tristate.TRUE)

@@ -87,3 +87,14 @@ paperproxy:
     result: "{prefix}<gray>IP von <white>{player}</white>: <white>{ip}"
   servers:
     line: "<white>{server}</white> <dark_gray>|</dark_gray> <gray>{state}</gray> <dark_gray>|</dark_gray> <gray>{players} Spieler</gray> <dark_gray>|</dark_gray> <gray>Forwarding {forwarding}"
+  plugin:
+    warning: "<gold>Plugin-Reload ist experimentell.</gold>\n<gray>Manche Plugins verhalten sich danach fehlerhaft (doppelte Events, Speicherlecks, kaputte Verbindungen). Bei Problemen den Proxy neu starten. Fehler, die nur nach einem Reload auftreten, bitte nicht beim Plugin-Autor melden.</gray>\n<gray>Tippe <white>/{command}</white>, um fortzufahren."
+    working: "{prefix}<gray>Bearbeite <white>{plugin}</white> im Hintergrund..."
+    loaded: "{prefix}<green><white>{plugin}</white> geladen ({detail} ms)."
+    unloaded: "{prefix}<green><white>{plugin}</white> entladen."
+    failed: "{prefix}<red>{plugin} konnte nicht geändert werden: {detail}"
+    blocked: "{prefix}<red>{plugin} kann nicht sicher neu geladen werden. Bitte den Proxy neu starten."
+    not-found: "{prefix}<red>Kein Plugin namens {plugin} geladen."
+    file-not-found: "{prefix}<red>plugins/{plugin} existiert nicht."
+    has-dependents: "{prefix}<red>{plugin} wird von {detail} benötigt. Diese zuerst entladen."
+    list: "{prefix}<gray>Velocity-Plugins: <white>{velocity}</white>\n<gray>BungeeCord-Plugins: <white>{bungee}</white>\n<gray>Änderungen zur Laufzeit seit Start: <white>{changes}"

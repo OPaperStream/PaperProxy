@@ -550,7 +550,12 @@ public class VelocityEventManager implements EventManager {
     for (int i = offset; i < registrations.length; i++) {
       final HandlerRegistration registration = registrations[i];
       try {
+        final long watchdog = watchdogNanos;
+        final long started = watchdog > 0 ? System.nanoTime() : 0;
         final EventTask eventTask = registration.handler.executeAsync(event);
+        if (watchdog > 0) {
+          checkWatchdog(registration, event, System.nanoTime() - started, watchdog);
+        }
         if (eventTask == null) {
           continue;
         }
@@ -573,6 +578,69 @@ public class VelocityEventManager implements EventManager {
     if (future != null) {
       future.complete(event);
     }
+  }
+
+  /**
+   * PaperProxy: fires an event only to the listeners of one plugin, used when a single plugin
+   * is loaded or unloaded at runtime.
+   *
+   * @param plugin the plugin
+   * @param event the event
+   * @param <E> the event type
+   * @return a future completed after that plugin's listeners ran
+   */
+  public <E> CompletableFuture<E> fireOnly(final PluginContainer plugin, final E event) {
+    requireNonNull(event, "event");
+    final HandlersCache handlersCache = this.handlersCache.get(event.getClass());
+    if (handlersCache == null) {
+      return CompletableFuture.completedFuture(event);
+    }
+    final HandlerRegistration[] own = java.util.Arrays.stream(handlersCache.handlers)
+        .filter(registration -> registration.plugin == plugin)
+        .toArray(HandlerRegistration[]::new);
+    if (own.length == 0) {
+      return CompletableFuture.completedFuture(event);
+    }
+    final CompletableFuture<E> future = new CompletableFuture<>();
+    fire(future, event, new HandlersCache(handlersCache.asyncType, own));
+    return future;
+  }
+
+  /**
+   * PaperProxy: forgets the generated handlers of an unloaded plugin. Their cache keys hold the
+   * plugin's methods strongly and would otherwise keep its class loader alive.
+   *
+   * @param loader the unloaded plugin's class loader
+   */
+  public void forgetClassLoader(final ClassLoader loader) {
+    untargetedMethodHandlers.asMap().keySet()
+        .removeIf(method -> method.getDeclaringClass().getClassLoader() == loader);
+    handlersCache.invalidateAll();
+  }
+
+  /** PaperProxy watchdog threshold in nanoseconds; 0 disables it. */
+  private volatile long watchdogNanos = 500_000_000L;
+
+  /**
+   * Sets the PaperProxy watchdog: listeners that block an event longer than this are reported
+   * with plugin and listener name.
+   *
+   * @param millis the threshold in milliseconds, 0 to disable
+   */
+  public void setWatchdogMillis(final int millis) {
+    this.watchdogNanos = Math.max(0, millis) * 1_000_000L;
+  }
+
+  private static void checkWatchdog(final HandlerRegistration registration, final Object event,
+      final long elapsedNanos, final long thresholdNanos) {
+    if (elapsedNanos < thresholdNanos) {
+      return;
+    }
+    final String listener = registration.instance == null ? "?"
+        : registration.instance.getClass().getName();
+    logger.warn("[Watchdog] Plugin '{}' blocked {} for {} ms (listener {}). Slow work belongs in "
+            + "an async task.", registration.plugin.getDescription().getId(),
+        event.getClass().getSimpleName(), elapsedNanos / 1_000_000L, listener);
   }
 
   private static final int TASK_STATE_DEFAULT = 0;

@@ -99,3 +99,14 @@ paperproxy:
     result: "{prefix}<gray>IP of <white>{player}</white>: <white>{ip}"
   servers:
     line: "<white>{server}</white> <dark_gray>|</dark_gray> <gray>{state}</gray> <dark_gray>|</dark_gray> <gray>{players} players</gray> <dark_gray>|</dark_gray> <gray>forwarding {forwarding}"
+  plugin:
+    warning: "<gold>Plugin reload is experimental.</gold>\n<gray>Some plugins misbehave afterwards (duplicate events, memory leaks, broken connections). If problems occur, restart the proxy. Do not report errors that only happen after a reload to the plugin author.</gray>\n<gray>Type <white>/{command}</white> to continue."
+    working: "{prefix}<gray>Working on <white>{plugin}</white> in the background..."
+    loaded: "{prefix}<green><white>{plugin}</white> loaded ({detail} ms)."
+    unloaded: "{prefix}<green><white>{plugin}</white> unloaded."
+    failed: "{prefix}<red>{plugin} could not be changed: {detail}"
+    blocked: "{prefix}<red>{plugin} cannot be reloaded safely. Please restart the proxy."
+    not-found: "{prefix}<red>No plugin named {plugin} is loaded."
+    file-not-found: "{prefix}<red>plugins/{plugin} does not exist."
+    has-dependents: "{prefix}<red>{plugin} is needed by {detail}. Unload those first."
+    list: "{prefix}<gray>Velocity plugins: <white>{velocity}</white>\n<gray>BungeeCord plugins: <white>{bungee}</white>\n<gray>Runtime changes since start: <white>{changes}"

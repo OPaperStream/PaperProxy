@@ -118,6 +118,7 @@ import net.paperstream.paperproxy.messages.PaperProxyMessages;
 import net.paperstream.paperproxy.network.HealthChecker;
 import net.paperstream.paperproxy.network.NetworkRules;
 import net.paperstream.paperproxy.network.PingCache;
+import net.paperstream.paperproxy.plugin.PluginReloader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bstats.MetricsBase;
@@ -196,6 +197,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
       () -> paperProxyConfig.values().pingCacheSeconds());
   private final HealthChecker healthChecker = new HealthChecker(this);
   private final NetworkRules networkRules = new NetworkRules(this);
+  private final PluginReloader pluginReloader = new PluginReloader(this);
 
   VelocityServer(final ProxyOptions options) {
     pluginManager = new VelocityPluginManager(this);
@@ -218,6 +220,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
    */
   private void loadPaperProxyConfig() {
     paperProxyConfig.load();
+    eventManager.setWatchdogMillis(paperProxyConfig.values().watchdogMillis());
     pingCache.clear();
     healthChecker.start();
     if (forwarding.paperGuardInUse()) {
@@ -245,6 +248,24 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
    */
   public Forwarding getForwarding() {
     return forwarding;
+  }
+
+  /**
+   * Returns the BungeeCord layer, or null when no BungeeCord plugin is installed.
+   *
+   * @return the layer
+   */
+  public @Nullable BungeeLayerHandle getBungeeLayer() {
+    return bungeeLayer;
+  }
+
+  /**
+   * Returns the runtime plugin loader.
+   *
+   * @return the reloader
+   */
+  public PluginReloader getPluginReloader() {
+    return pluginReloader;
   }
 
   /**

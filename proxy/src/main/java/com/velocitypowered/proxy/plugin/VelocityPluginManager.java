@@ -87,6 +87,61 @@ public class VelocityPluginManager implements PluginManager {
   }
 
   /**
+   * PaperProxy: removes a plugin from the registry when it is unloaded at runtime.
+   *
+   * @param plugin the plugin
+   */
+  public void unregisterPlugin(PluginContainer plugin) {
+    plugins.remove(plugin);
+    pluginsById.values().removeIf(registered -> registered == plugin);
+    pluginInstances.values().removeIf(registered -> registered == plugin);
+  }
+
+  /**
+   * PaperProxy: loads one Velocity plugin at runtime. Dependencies must already be loaded.
+   *
+   * @param jar the plugin jar
+   * @return the loaded plugin
+   * @throws Exception if the plugin cannot be loaded
+   */
+  public PluginContainer loadPlugin(Path jar) throws Exception {
+    JavaPluginLoader loader = new JavaPluginLoader(server, jar.getParent());
+    PluginDescription candidate = loader.loadCandidate(jar);
+    if (getPlugin(candidate.getId()).isPresent()) {
+      throw new IllegalStateException("A plugin with the ID " + candidate.getId()
+          + " is already loaded");
+    }
+    for (PluginDependency dependency : candidate.getDependencies()) {
+      if (!dependency.isOptional() && getPlugin(dependency.getId()).isEmpty()) {
+        throw new IllegalStateException("Missing dependency " + dependency.getId());
+      }
+    }
+    PluginDescription realPlugin = loader.createPluginFromCandidate(candidate);
+    VelocityPluginContainer container = new VelocityPluginContainer(realPlugin);
+    Module module = loader.createModule(container);
+    AbstractModule commonModule = new AbstractModule() {
+      @Override
+      protected void configure() {
+        bind(ProxyServer.class).toInstance(server);
+        bind(PluginManager.class).toInstance(server.getPluginManager());
+        bind(EventManager.class).toInstance(server.getEventManager());
+        bind(CommandManager.class).toInstance(server.getCommandManager());
+        for (PluginContainer existing : plugins) {
+          bind(PluginContainer.class)
+              .annotatedWith(Names.named(existing.getDescription().getId()))
+              .toInstance(existing);
+        }
+        bind(PluginContainer.class)
+            .annotatedWith(Names.named(container.getDescription().getId()))
+            .toInstance(container);
+      }
+    };
+    loader.createPlugin(container, module, commonModule);
+    registerPlugin(container);
+    return container;
+  }
+
+  /**
    * Loads all plugins from the specified {@code directory}.
    *
    * @param directory the directory to load from

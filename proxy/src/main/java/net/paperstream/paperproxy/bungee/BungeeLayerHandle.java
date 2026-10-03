@@ -41,4 +41,37 @@ public interface BungeeLayerHandle {
    * @return the plugin names
    */
   List<String> pluginNames();
+
+  /**
+   * Finds a loaded BungeeCord plugin by name, ignoring case.
+   *
+   * @param name the plugin name
+   * @return the exact name, or empty
+   */
+  java.util.Optional<String> findPlugin(String name);
+
+  /**
+   * Returns the jar a loaded plugin came from.
+   *
+   * @param name the exact plugin name
+   * @return the jar
+   */
+  java.nio.file.Path pluginFile(String name);
+
+  /**
+   * Disables and removes one plugin: listeners, commands, tasks and its class loader.
+   *
+   * @param name the exact plugin name
+   * @return the plugin's former class loader, to check for leaks
+   */
+  ClassLoader unloadPlugin(String name);
+
+  /**
+   * Loads and enables one plugin jar.
+   *
+   * @param jar the jar
+   * @return the plugin name
+   * @throws Exception if it cannot be loaded
+   */
+  String loadPlugin(java.nio.file.Path jar) throws Exception;
 }

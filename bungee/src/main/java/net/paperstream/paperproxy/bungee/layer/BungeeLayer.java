@@ -161,6 +161,125 @@ public final class BungeeLayer implements BungeeLayerHandle {
     return pluginManager.getPlugins().stream().map(p -> p.getDescription().getName()).toList();
   }
 
+  @Override
+  public java.util.Optional<String> findPlugin(final String name) {
+    return pluginManager.getPlugins().stream()
+        .map(plugin -> plugin.getDescription().getName())
+        .filter(pluginName -> pluginName.equalsIgnoreCase(name))
+        .findFirst();
+  }
+
+  @Override
+  public Path pluginFile(final String name) {
+    return pluginManager.getPlugin(name).getDescription().getFile().toPath();
+  }
+
+  @Override
+  @SuppressWarnings("unchecked")
+  public ClassLoader unloadPlugin(final String name) {
+    final Plugin plugin = pluginManager.getPlugin(name);
+    if (plugin == null) {
+      throw new IllegalArgumentException("BungeeCord plugin " + name + " is not loaded");
+    }
+    final ClassLoader loader = plugin.getClass().getClassLoader();
+    try {
+      plugin.onDisable();
+    } catch (final Throwable t) {
+      logger.error("Error disabling BungeeCord plugin {}", name, t);
+    }
+    scheduler.cancel(plugin);
+    pluginManager.unregisterListeners(plugin);
+    pluginManager.unregisterCommands(plugin);
+    commands.sync();
+    try {
+      ((Map<String, Plugin>) field(PluginManager.class, "plugins").get(pluginManager))
+          .remove(name);
+      final Object service = field(Plugin.class, "service").get(plugin);
+      if (service instanceof java.util.concurrent.ExecutorService executor) {
+        executor.shutdownNow();
+      }
+      final Class<?> loaderClass = Class.forName("net.md_5.bungee.api.plugin.PluginClassloader");
+      ((java.util.Set<?>) field(loaderClass, "allLoaders").get(null)).remove(loader);
+    } catch (final ReflectiveOperationException e) {
+      throw new IllegalStateException("Incompatible BungeeCord API version", e);
+    }
+    velocity.getPluginManager().fromInstance(plugin).ifPresent(pluginManagerV()::unregisterPlugin);
+    if (loader instanceof java.io.Closeable closeable) {
+      try {
+        closeable.close();
+      } catch (final java.io.IOException e) {
+        logger.warn("Could not close the class loader of {}", name, e);
+      }
+    }
+    return loader;
+  }
+
+  @Override
+  @SuppressWarnings("unchecked")
+  public String loadPlugin(final Path jar) throws Exception {
+    final Thread thread = Thread.currentThread();
+    final ClassLoader previous = thread.getContextClassLoader();
+    thread.setContextClassLoader(BungeeLayer.class.getClassLoader());
+    try {
+      final PluginDescription description = readDescription(jar);
+      if (pluginManager.getPlugin(description.getName()) != null) {
+        throw new IllegalStateException(description.getName() + " is already loaded");
+      }
+      for (final String depend : description.getDepends()) {
+        if (pluginManager.getPlugin(depend) == null) {
+          throw new IllegalStateException("Missing dependency " + depend);
+        }
+      }
+      final Map<String, PluginDescription> toLoad = new java.util.HashMap<>();
+      toLoad.put(description.getName(), description);
+      field(PluginManager.class, "toLoad").set(pluginManager, toLoad);
+      pluginManager.loadPlugins();
+      final Plugin plugin = pluginManager.getPlugin(description.getName());
+      if (plugin == null) {
+        throw new IllegalStateException(description.getName() + " failed to load, see above");
+      }
+      registerContainer(plugin);
+      plugin.onEnable();
+      commands.sync();
+      return description.getName();
+    } finally {
+      thread.setContextClassLoader(previous);
+    }
+  }
+
+  private static Field field(final Class<?> owner, final String name)
+      throws NoSuchFieldException {
+    final Field field = owner.getDeclaredField(name);
+    field.setAccessible(true);
+    return field;
+  }
+
+  private static PluginDescription readDescription(final Path path) throws java.io.IOException {
+    final Constructor constructor = new Constructor(new LoaderOptions());
+    final PropertyUtils propertyUtils = constructor.getPropertyUtils();
+    propertyUtils.setSkipMissingProperties(true);
+    constructor.setPropertyUtils(propertyUtils);
+    try (JarFile jar = new JarFile(path.toFile())) {
+      JarEntry entry = jar.getJarEntry("bungee.yml");
+      if (entry == null) {
+        entry = jar.getJarEntry("plugin.yml");
+      }
+      if (entry == null) {
+        throw new java.io.IOException(path.getFileName() + " has no bungee.yml or plugin.yml");
+      }
+      try (InputStream in = jar.getInputStream(entry)) {
+        final PluginDescription description = new Yaml(constructor).loadAs(in,
+            PluginDescription.class);
+        if (description == null || description.getName() == null
+            || description.getMain() == null) {
+          throw new java.io.IOException(path.getFileName() + " has no name or main");
+        }
+        description.setFile(path.toFile());
+        return description;
+      }
+    }
+  }
+
   /**
    * Reads the descriptions of our jars and hands them to Bungee's PluginManager. Bungee's own
    * detectPlugins would scan every jar in the folder, including Velocity plugins, and complain
