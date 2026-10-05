@@ -124,6 +124,7 @@ import net.paperstream.paperproxy.network.AntiBot;
 import net.paperstream.paperproxy.network.DiscordWebhook;
 import net.paperstream.paperproxy.network.HealthChecker;
 import net.paperstream.paperproxy.network.HiddenCommands;
+import net.paperstream.paperproxy.network.Limbo;
 import net.paperstream.paperproxy.network.MetricsEndpoint;
 import net.paperstream.paperproxy.network.Motd;
 import net.paperstream.paperproxy.network.NetworkRules;
@@ -227,6 +228,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
   private final Punishments punishments = new Punishments(this, Path.of(""));
   private final Parties parties = new Parties(this);
   private final ProxyStats proxyStats = new ProxyStats();
+  private final Limbo limbo = new Limbo(this);
   private volatile boolean listening;
   private final Motd motd = new Motd(Path.of(""));
   private final PluginReloader pluginReloader = new PluginReloader(this);
@@ -404,6 +406,15 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
    */
   public Punishments getPunishments() {
     return punishments;
+  }
+
+  /**
+   * Returns the limbo for players whose server restarts.
+   *
+   * @return the limbo
+   */
+  public Limbo getLimbo() {
+    return limbo;
   }
 
   /**
@@ -595,6 +606,8 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
     eventManager.register(VelocityVirtualPlugin.INSTANCE, punishments);
     eventManager.register(VelocityVirtualPlugin.INSTANCE, parties);
     eventManager.register(VelocityVirtualPlugin.INSTANCE, proxyStats);
+    eventManager.register(VelocityVirtualPlugin.INSTANCE, limbo);
+    limbo.start();
     punishments.start();
     restartScheduler.start();
     eventManager.register(VelocityVirtualPlugin.INSTANCE, motd);

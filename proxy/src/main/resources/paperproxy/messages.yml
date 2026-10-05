@@ -110,6 +110,10 @@ paperproxy:
     attack-start: "{prefix}<red>Bot attack detected. Only known players can join for now."
     attack-end: "{prefix}<green>Bot attack over. Everyone can join again."
     ping-first: "<yellow>Please add this server to your server list, refresh it once and join from there.</yellow>\n<gray>This keeps bots out."
+  limbo:
+    entered: "{prefix}<yellow><white>{server}</white> is restarting. Stay here, you are sent back as soon as it is online."
+    title: "<yellow>Please wait"
+    subtitle: "<gray><white>{server}</white> is restarting ({seconds}s)"
   restart:
     planned: "{prefix}<gray>Proxy restart planned in <white>{seconds}</white> seconds."
     cancelled: "{prefix}<green>Planned restart cancelled."

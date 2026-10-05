@@ -115,6 +115,15 @@ passthrough-server = ""
 # Query port of that server, 0 = its game port (query.port in server.properties).
 passthrough-port = 0
 
+[limbo]
+# When a server restarts or crashes and no other server can take its players, they stay
+# connected in the last world they saw and are sent back as soon as the server (or another
+# member of its group) is online. Real kicks (bans, AFK) are not affected.
+enabled = true
+max-wait-seconds = 300
+# Kick messages that mean "restarting". A lost connection always counts.
+kick-messages = ["server closed", "restarting", "server is restarting", "server stopped"]
+
 [discord]
 # Post network events to a Discord channel. Create the webhook under
 # channel settings > Integrations > Webhooks. Empty = off.

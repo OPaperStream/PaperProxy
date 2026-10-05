@@ -118,6 +118,8 @@ set `settings.bungeecord: true` in its `spigot.yml`.
   name or same plugin id) on the next start
 - **Hidden commands**: keep commands like `/server` or `/plugins` out of tab completion
 - **Query passthrough**: server queries show the map, version and plugins of a backend
+- **Limbo**: when a server restarts or crashes and no other server can take its players, they
+  stay connected and are sent back as soon as it is online again, no plugin or extra server
 - **Parties**: `/party` and `/pc`, members follow their leader from server to server
 - **Bans, mutes and kicks** for the whole network (opt-in), shared across proxies
 - **Planned restarts** with countdown, titles and transfer to another proxy

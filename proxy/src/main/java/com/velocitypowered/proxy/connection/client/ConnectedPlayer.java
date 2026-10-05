@@ -798,7 +798,12 @@ public class ConnectedPlayer implements MinecraftConnectionAssociation, Player, 
       }
 
       switch (event.getResult()) {
-        case DisconnectPlayer res -> disconnect(res.getReasonComponent());
+        case DisconnectPlayer res -> {
+          // PaperProxy: wait in the limbo while the server restarts instead of disconnecting.
+          if (!server.getLimbo().tryEnter(this, event, res.getReasonComponent())) {
+            disconnect(res.getReasonComponent());
+          }
+        }
         case RedirectPlayer res -> createConnectionRequest(res.getServer(), previousConnection).connect()
                 .whenCompleteAsync((status, throwable) -> {
                   if (throwable != null) {
@@ -841,7 +846,7 @@ public class ConnectedPlayer implements MinecraftConnectionAssociation, Player, 
         case Notify res -> {
           if (event.kickedDuringServerConnect() && previousConnection != null) {
             sendMessage(res.getMessageComponent());
-          } else {
+          } else if (!server.getLimbo().tryEnter(this, event, res.getMessageComponent())) {
             disconnect(res.getMessageComponent());
           }
         }

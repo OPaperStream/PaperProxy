@@ -98,6 +98,10 @@ paperproxy:
     attack-start: "{prefix}<red>Bot-Angriff erkannt. Vorerst können nur bekannte Spieler joinen."
     attack-end: "{prefix}<green>Bot-Angriff vorbei. Alle können wieder joinen."
     ping-first: "<yellow>Bitte füge den Server zu deiner Serverliste hinzu, aktualisiere sie einmal und joine von dort.</yellow>\n<gray>Das hält Bots fern."
+  limbo:
+    entered: "{prefix}<yellow><white>{server}</white> startet neu. Bleib hier, du wirst zurückgeschickt, sobald er online ist."
+    title: "<yellow>Bitte warten"
+    subtitle: "<gray><white>{server}</white> startet neu ({seconds}s)"
   restart:
     planned: "{prefix}<gray>Proxy-Neustart in <white>{seconds}</white> Sekunden geplant."
     cancelled: "{prefix}<green>Geplanter Neustart abgebrochen."

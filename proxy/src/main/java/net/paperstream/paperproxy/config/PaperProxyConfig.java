@@ -85,6 +85,7 @@ public final class PaperProxyConfig {
    * @param restart planned restart settings
    * @param party party settings
    * @param punish whether the ban, mute and kick commands are registered
+   * @param limbo limbo settings
    */
   public record Values(Map<String, PlayerInfoForwarding> forwarding, int paperGuardMaxAgeSeconds,
                        Map<String, VersionRange> versions, boolean healthCheck,
@@ -98,7 +99,7 @@ public final class PaperProxyConfig {
                        AntiBot antiBot, Metrics metrics, String transferOnShutdown,
                        Sync sync, Set<String> hiddenCommands, String queryServer,
                        int queryPort, Discord discord, Restart restart, Party party,
-                       boolean punish) {
+                       boolean punish, Limbo limbo) {
 
     static Values defaults() {
       return new Values(Map.of(), 10, Map.of(), true, 10, "paperproxy.notify.health", false,
@@ -107,7 +108,7 @@ public final class PaperProxyConfig {
           true, "release", false, false, Map.of(), Queue.defaults(), "",
           List.of("hub", "lobby"), AntiBot.defaults(), Metrics.defaults(), "",
           Sync.defaults(), Set.of(), "", 0, Discord.defaults(), Restart.defaults(),
-          Party.defaults(), false);
+          Party.defaults(), false, Limbo.defaults());
     }
   }
 
@@ -155,6 +156,21 @@ public final class PaperProxyConfig {
 
     static Restart defaults() {
       return new Restart(List.of(), List.of(600, 300, 60, 30, 10, 5, 4, 3, 2, 1));
+    }
+  }
+
+  /**
+   * Limbo settings.
+   *
+   * @param enabled whether players wait in the limbo when their server restarts
+   * @param maxWaitSeconds how long they wait at most
+   * @param kickMessages kick messages (parts, any case) that mean the server is restarting
+   */
+  public record Limbo(boolean enabled, int maxWaitSeconds, List<String> kickMessages) {
+
+    static Limbo defaults() {
+      return new Limbo(true, 300, List.of("server closed", "restarting", "server is restarting",
+          "server stopped"));
     }
   }
 
@@ -427,7 +443,12 @@ public final class PaperProxyConfig {
         new Party(bool(config, "party.enabled", d.party().enabled(), errors),
             integer(config, "party.max-size", d.party().maxSize(), 2, 100, errors),
             bool(config, "party.follow-leader", d.party().follow(), errors)),
-        bool(config, "punish.enabled", d.punish(), errors));
+        bool(config, "punish.enabled", d.punish(), errors),
+        new Limbo(bool(config, "limbo.enabled", d.limbo().enabled(), errors),
+            integer(config, "limbo.max-wait-seconds", d.limbo().maxWaitSeconds(), 10, 3600,
+                errors),
+            config.get("limbo.kick-messages") == null ? d.limbo().kickMessages()
+                : stringList(config.get("limbo.kick-messages"))));
   }
 
   private static String requirePing(final Config config, final String def,
