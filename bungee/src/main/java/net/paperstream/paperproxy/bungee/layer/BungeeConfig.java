@@ -24,6 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import net.md_5.bungee.api.Favicon;
 import net.md_5.bungee.api.ProxyConfig;
 import net.md_5.bungee.api.config.ConfigurationAdapter;
@@ -37,6 +38,8 @@ final class BungeeConfig implements ProxyConfig {
 
   private final BungeeLayer layer;
   private final String uuid = UUID.randomUUID().toString();
+  /** Mutable like BungeeCord's: plugins such as LuckPerms add to or remove from it. */
+  private final Collection<String> disabledCommands = ConcurrentHashMap.newKeySet();
 
   BungeeConfig(final BungeeLayer layer) {
     this.layer = layer;
@@ -109,7 +112,7 @@ final class BungeeConfig implements ProxyConfig {
 
   @Override
   public Collection<String> getDisabledCommands() {
-    return List.of();
+    return disabledCommands;
   }
 
   @Override

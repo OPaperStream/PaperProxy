@@ -269,7 +269,10 @@ public class GameSpyQueryHandler extends SimpleChannelInboundHandler<DatagramPac
       }
 
       StringBuilder pluginsString = new StringBuilder();
-      pluginsString.append(serverVersion).append(':').append(' ');
+      pluginsString.append(serverVersion);
+      if (!plugins.isEmpty()) {
+        pluginsString.append(':').append(' ');
+      }
       Iterator<QueryResponse.PluginInformation> iterator = plugins.iterator();
       while (iterator.hasNext()) {
         QueryResponse.PluginInformation info = iterator.next();

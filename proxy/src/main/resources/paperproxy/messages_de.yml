@@ -97,9 +97,15 @@ paperproxy:
     too-many-accounts: "<red>Zu viele Accounts von deiner Verbindung</red> <gray>(höchstens {max})."
     attack-start: "{prefix}<red>Bot-Angriff erkannt. Vorerst können nur bekannte Spieler joinen."
     attack-end: "{prefix}<green>Bot-Angriff vorbei. Alle können wieder joinen."
+  sync:
+    logged-in-elsewhere: "<red>Du hast dich an anderer Stelle im Netzwerk eingeloggt."
+    disabled: "{prefix}<gray>Die Netzwerk-Synchronisation ist aus. Aktivieren in <white>paperproxy.toml</white> unter <white>[sync]</white>."
+    total: "{prefix}<white>{players}</white> <gray>Spieler auf</gray> <white>{proxies}</white> <gray>Proxys:"
+    line: "<dark_gray>-</dark_gray> <white>{proxy}</white> <dark_gray>|</dark_gray> <gray>{players} Spieler"
   alert:
     format: "<dark_gray>[<red>Alarm</red>]</dark_gray> <white>{message}"
   find:
+    result-network: "{prefix}<white>{player}</white> <gray>ist auf</gray> <white>{server}</white> <gray>(Proxy <white>{proxy}</white>)"
     result: "{prefix}<white>{player}</white> <gray>ist auf</gray> <white>{server}</white>"
     not-online: "{prefix}<red>{player} ist nicht online."
   ip:

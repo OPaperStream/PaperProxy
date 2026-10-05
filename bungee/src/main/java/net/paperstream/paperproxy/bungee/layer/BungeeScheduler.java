@@ -19,21 +19,43 @@ package net.paperstream.paperproxy.bungee.layer;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import net.md_5.bungee.api.plugin.Plugin;
 import net.md_5.bungee.api.scheduler.ScheduledTask;
 import net.md_5.bungee.api.scheduler.TaskScheduler;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
- * Bungee's scheduler on Virtual Threads. Like on BungeeCord every task runs asynchronously; a
- * repeating task never overlaps with itself because the next delay starts after the run.
+ * Bungee's scheduler. Like on BungeeCord every task runs asynchronously on a normal (platform)
+ * thread; a repeating task never overlaps with itself because the next delay starts after the
+ * run.
+ *
+ * <p>Virtual threads are not used on purpose: plugins run blocking JDBC and native code (SQLite,
+ * for example) in their tasks, which pins virtual threads to their few carrier threads and can
+ * stall every other task under load.
  */
 final class BungeeScheduler implements TaskScheduler {
 
   private final AtomicInteger ids = new AtomicInteger();
+  private final AtomicInteger threads = new AtomicInteger();
   private final Map<Integer, Task> tasks = new ConcurrentHashMap<>();
+  private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(
+      runnable -> daemon(runnable, "PaperProxy Bungee Scheduler"));
+  private final ExecutorService workers = Executors.newCachedThreadPool(
+      runnable -> daemon(runnable, "PaperProxy Bungee Task #" + threads.incrementAndGet()));
+
+  private static Thread daemon(final Runnable runnable, final String name) {
+    final Thread thread = new Thread(runnable, name);
+    thread.setDaemon(true);
+    return thread;
+  }
 
   @Override
   public void cancel(final int id) {
@@ -94,6 +116,8 @@ final class BungeeScheduler implements TaskScheduler {
    */
   void shutdown() {
     tasks.values().forEach(Task::cancel);
+    timer.shutdownNow();
+    workers.shutdown();
   }
 
   private final class Task implements ScheduledTask {
@@ -104,7 +128,8 @@ final class BungeeScheduler implements TaskScheduler {
     private final long delayNanos;
     private final long periodNanos;
     private volatile boolean cancelled;
-    private volatile Thread thread;
+    private volatile @Nullable Thread thread;
+    private volatile @Nullable Future<?> pending;
 
     Task(final int id, final Plugin owner, final Runnable runnable, final long delayNanos,
          final long periodNanos) {
@@ -116,32 +141,46 @@ final class BungeeScheduler implements TaskScheduler {
     }
 
     void start() {
-      thread = Thread.ofVirtual()
-          .name(owner.getDescription().getName() + " Task #" + id)
-          .start(this::loop);
+      if (delayNanos > 0) {
+        pending = timer.schedule(this::submit, delayNanos, TimeUnit.NANOSECONDS);
+      } else {
+        submit();
+      }
     }
 
-    private void loop() {
+    private void submit() {
+      if (cancelled) {
+        return;
+      }
       try {
-        if (delayNanos > 0) {
-          TimeUnit.NANOSECONDS.sleep(delayNanos);
-        }
-        while (!cancelled) {
-          try {
-            runnable.run();
-          } catch (final Throwable t) {
-            owner.getLogger().log(Level.SEVERE, "Task " + id + " encountered an exception", t);
-          }
-          if (periodNanos <= 0) {
-            break;
-          }
-          TimeUnit.NANOSECONDS.sleep(periodNanos);
-        }
-      } catch (final InterruptedException e) {
-        Thread.currentThread().interrupt();
-      } finally {
+        pending = workers.submit(this::run);
+      } catch (final RejectedExecutionException e) {
         tasks.remove(id);
       }
+    }
+
+    private void run() {
+      thread = Thread.currentThread();
+      try {
+        if (!cancelled) {
+          runnable.run();
+        }
+      } catch (final Throwable t) {
+        owner.getLogger().log(Level.SEVERE, "Task " + id + " encountered an exception", t);
+      } finally {
+        thread = null;
+        // Clear an interrupt from cancel() so it does not leak into the next task on this thread.
+        Thread.interrupted();
+      }
+      if (periodNanos > 0 && !cancelled) {
+        try {
+          pending = timer.schedule(this::submit, periodNanos, TimeUnit.NANOSECONDS);
+          return;
+        } catch (final RejectedExecutionException e) {
+          // Shutting down.
+        }
+      }
+      tasks.remove(id);
     }
 
     @Override
@@ -163,6 +202,10 @@ final class BungeeScheduler implements TaskScheduler {
     public void cancel() {
       cancelled = true;
       tasks.remove(id);
+      final Future<?> scheduled = pending;
+      if (scheduled != null) {
+        scheduled.cancel(false);
+      }
       final Thread current = thread;
       // A task cancelling itself must be allowed to finish its current run.
       if (current != null && current != Thread.currentThread()) {

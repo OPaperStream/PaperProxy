@@ -120,13 +120,17 @@ import net.paperstream.paperproxy.forwarding.Forwarding;
 import net.paperstream.paperproxy.messages.PaperProxyMessages;
 import net.paperstream.paperproxy.network.AntiBot;
 import net.paperstream.paperproxy.network.HealthChecker;
+import net.paperstream.paperproxy.network.HiddenCommands;
 import net.paperstream.paperproxy.network.MetricsEndpoint;
 import net.paperstream.paperproxy.network.Motd;
 import net.paperstream.paperproxy.network.NetworkRules;
 import net.paperstream.paperproxy.network.PingCache;
+import net.paperstream.paperproxy.network.QueryPassthrough;
 import net.paperstream.paperproxy.network.ServerGroups;
 import net.paperstream.paperproxy.network.ServerQueue;
 import net.paperstream.paperproxy.plugin.PluginReloader;
+import net.paperstream.paperproxy.plugin.UpdateFolder;
+import net.paperstream.paperproxy.sync.NetworkSync;
 import net.paperstream.paperproxy.update.UpdateChecker;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -210,6 +214,8 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
   private final ServerQueue serverQueue = new ServerQueue(this);
   private final AntiBot antiBot = new AntiBot(this, Path.of(""));
   private final MetricsEndpoint metricsEndpoint = new MetricsEndpoint(this);
+  private final NetworkSync networkSync = new NetworkSync(this);
+  private volatile boolean listening;
   private final Motd motd = new Motd(Path.of(""));
   private final PluginReloader pluginReloader = new PluginReloader(this);
   private final UpdateChecker updateChecker = new UpdateChecker(this);
@@ -241,6 +247,10 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
     healthChecker.start();
     serverQueue.start();
     metricsEndpoint.apply();
+    if (listening) {
+      // On the first load the bind address is not known yet; the sync starts after binding.
+      networkSync.apply();
+    }
     if (forwarding.paperGuardInUse()) {
       try {
         forwarding.loadSecret();
@@ -346,6 +356,15 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
       logger.error("shutdown.transfer-to '{}' is not a valid host:port", target);
       return null;
     }
+  }
+
+  /**
+   * Returns the Redis network sync.
+   *
+   * @return the sync
+   */
+  public NetworkSync getNetworkSync() {
+    return networkSync;
   }
 
   /**
@@ -512,6 +531,9 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
     eventManager.register(VelocityVirtualPlugin.INSTANCE, networkRules);
     eventManager.register(VelocityVirtualPlugin.INSTANCE, serverQueue);
     eventManager.register(VelocityVirtualPlugin.INSTANCE, antiBot);
+    eventManager.register(VelocityVirtualPlugin.INSTANCE, networkSync);
+    eventManager.register(VelocityVirtualPlugin.INSTANCE, new HiddenCommands(this));
+    eventManager.register(VelocityVirtualPlugin.INSTANCE, new QueryPassthrough(this));
     antiBot.start();
     eventManager.register(VelocityVirtualPlugin.INSTANCE, motd);
     eventManager.register(VelocityVirtualPlugin.INSTANCE, updateChecker);
@@ -547,6 +569,8 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
     } else {
       this.cm.bind(configuration.getBind());
     }
+    listening = true;
+    networkSync.apply();
 
     final Boolean haproxy = this.options.isHaproxy();
     if (haproxy != null) {
@@ -661,6 +685,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
           return;
         }
 
+        UpdateFolder.apply(pluginPath);
         pluginManager.loadPlugins(pluginPath);
       }
     } catch (Exception e) {
@@ -901,6 +926,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
         eventManager.fire(new ProxyShutdownEvent()).join();
         antiBot.save();
         metricsEndpoint.stop();
+        networkSync.stop();
 
         timedOut = !scheduler.shutdown() || timedOut;
 

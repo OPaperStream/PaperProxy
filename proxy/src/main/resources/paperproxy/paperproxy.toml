@@ -86,6 +86,31 @@ port = 9225
 # (Minecraft 1.20.5+ clients), e.g. "play2.example.net:25565". Empty = kick as usual.
 transfer-to = ""
 
+[sync]
+# Connect several PaperProxy instances through Redis: network wide player count, /find and
+# /alert across proxies, /pp network, and no double logins on two proxies.
+enabled = false
+# Name of this proxy. Empty = hostname:port.
+proxy-id = ""
+redis-host = "127.0.0.1"
+redis-port = 6379
+redis-password = ""
+redis-database = 0
+# Show the players of all proxies in the server list.
+network-player-count = true
+
+[tab-complete]
+# Commands players do not get suggested, e.g. ["plugins", "version", "server"].
+# The commands still work. Players with paperproxy.tabcomplete.bypass see them anyway.
+hidden-commands = []
+
+[query]
+# Answer server queries (enable-query in velocity.toml) with the map, version and plugins of
+# this backend server. Empty = the proxy answers itself.
+passthrough-server = ""
+# Query port of that server, 0 = its game port (query.port in server.properties).
+passthrough-port = 0
+
 [ping-cache]
 # Server list responses are reused for this many seconds. 0 disables the cache.
 seconds = 5

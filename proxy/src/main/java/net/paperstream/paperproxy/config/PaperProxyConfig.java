@@ -25,6 +25,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -74,6 +75,10 @@ public final class PaperProxyConfig {
    * @param antiBot bot protection settings
    * @param metrics Prometheus endpoint settings
    * @param transferOnShutdown host:port to send players to when the proxy stops, or empty
+   * @param sync network sync settings
+   * @param hiddenCommands commands hidden from tab completion (lower case)
+   * @param queryServer backend whose query answer the proxy passes on, empty if disabled
+   * @param queryPort query port of that backend, 0 = its game port
    */
   public record Values(Map<String, PlayerInfoForwarding> forwarding, int paperGuardMaxAgeSeconds,
                        Map<String, VersionRange> versions, boolean healthCheck,
@@ -84,14 +89,17 @@ public final class PaperProxyConfig {
                        boolean updateCheck, String updateChannel, boolean autoUpdate,
                        boolean autoUpdateAllowMajor, Map<String, List<String>> groups,
                        Queue queue, String hubTarget, List<String> hubAliases,
-                       AntiBot antiBot, Metrics metrics, String transferOnShutdown) {
+                       AntiBot antiBot, Metrics metrics, String transferOnShutdown,
+                       Sync sync, Set<String> hiddenCommands, String queryServer,
+                       int queryPort) {
 
     static Values defaults() {
       return new Values(Map.of(), 10, Map.of(), true, 10, "paperproxy.notify.health", false,
           Set.of(), Set.of(), 5, 500, true,
           Set.of("viaversion", "viabackwards", "viarewind", "luckperms", "geyser", "floodgate"),
           true, "release", false, false, Map.of(), Queue.defaults(), "",
-          List.of("hub", "lobby"), AntiBot.defaults(), Metrics.defaults(), "");
+          List.of("hub", "lobby"), AntiBot.defaults(), Metrics.defaults(), "",
+          Sync.defaults(), Set.of(), "", 0);
     }
   }
 
@@ -111,6 +119,25 @@ public final class PaperProxyConfig {
 
     static AntiBot defaults() {
       return new AntiBot(true, 30, 60, true, 0, "");
+    }
+  }
+
+  /**
+   * Network sync settings.
+   *
+   * @param enabled whether proxies are connected through Redis
+   * @param proxyId this proxy's name, empty for host:port
+   * @param host the Redis host
+   * @param port the Redis port
+   * @param password the Redis password, empty for none
+   * @param database the Redis database number
+   * @param networkPlayerCount whether the server list shows all proxies' players
+   */
+  public record Sync(boolean enabled, String proxyId, String host, int port, String password,
+                     int database, boolean networkPlayerCount) {
+
+    static Sync defaults() {
+      return new Sync(false, "", "127.0.0.1", 6379, "", 0, true);
     }
   }
 
@@ -300,6 +327,15 @@ public final class PaperProxyConfig {
         bool(config, "metrics.enabled", m.enabled(), errors),
         string(config, "metrics.bind", m.bind(), errors),
         integer(config, "metrics.port", m.port(), 1, 65535, errors));
+    final Sync y = Sync.defaults();
+    final Sync sync = new Sync(
+        bool(config, "sync.enabled", y.enabled(), errors),
+        string(config, "sync.proxy-id", y.proxyId(), errors).trim(),
+        string(config, "sync.redis-host", y.host(), errors).trim(),
+        integer(config, "sync.redis-port", y.port(), 1, 65535, errors),
+        string(config, "sync.redis-password", y.password(), errors),
+        integer(config, "sync.redis-database", y.database(), 0, 1000, errors),
+        bool(config, "sync.network-player-count", y.networkPlayerCount(), errors));
     final List<String> hubAliases = config.get("hub-command.aliases") == null
         ? d.hubAliases() : List.copyOf(lowerSet(config.get("hub-command.aliases")));
 
@@ -332,7 +368,19 @@ public final class PaperProxyConfig {
         string(config, "hub-command.target", d.hubTarget(), errors).toLowerCase(Locale.ROOT)
             .trim(),
         hubAliases, antiBot, metrics,
-        string(config, "shutdown.transfer-to", d.transferOnShutdown(), errors).trim());
+        string(config, "shutdown.transfer-to", d.transferOnShutdown(), errors).trim(), sync,
+        hiddenCommands(config.get("tab-complete.hidden-commands")),
+        string(config, "query.passthrough-server", d.queryServer(), errors)
+            .toLowerCase(Locale.ROOT).trim(),
+        integer(config, "query.passthrough-port", d.queryPort(), 0, 65535, errors));
+  }
+
+  private static Set<String> hiddenCommands(final @Nullable Object value) {
+    final Set<String> out = new LinkedHashSet<>();
+    for (final String name : lowerSet(value)) {
+      out.add(name.startsWith("/") ? name.substring(1) : name);
+    }
+    return Set.copyOf(out);
   }
 
   private static int integer(final Config config, final String path, final int def,
@@ -394,6 +442,7 @@ public final class PaperProxyConfig {
     for (final String s : stringList(value)) {
       out.add(s.toLowerCase(Locale.ROOT));
     }
-    return Set.copyOf(out);
+    // Keep the order: group members are tried in the configured order on ties.
+    return Collections.unmodifiableSet(out);
   }
 }

@@ -113,6 +113,10 @@ public final class PaperProxyCommand {
             .requires(source -> source.getPermissionValue("paperproxy.command.servers")
                 == Tristate.TRUE)
             .executes(ctx -> servers(server, ctx)))
+        .then(BrigadierCommand.literalArgumentBuilder("network")
+            .requires(source -> source.getPermissionValue("paperproxy.command.servers")
+                == Tristate.TRUE)
+            .executes(ctx -> network(server, ctx)))
         .then(BrigadierCommand.literalArgumentBuilder("paperguard")
             // Keys are secrets: console only, never shown in game.
             .requires(source -> source instanceof ConsoleCommandSource)
@@ -232,6 +236,26 @@ public final class PaperProxyCommand {
           Argument.string("forwarding", server.getForwarding().modeFor(name).name()
               .toLowerCase(java.util.Locale.ROOT)),
           Argument.string("players", String.valueOf(registered.getPlayersConnected().size()))));
+    }
+    return Command.SINGLE_SUCCESS;
+  }
+
+  private static int network(final VelocityServer server,
+                             final CommandContext<CommandSource> ctx) {
+    final var sync = server.getNetworkSync();
+    if (!sync.connected()) {
+      ctx.getSource().sendMessage(Component.translatable("paperproxy.sync.disabled"));
+      return 0;
+    }
+    ctx.getSource().sendMessage(Component.translatable("paperproxy.sync.total",
+        Argument.string("players", String.valueOf(sync.networkPlayerCount())),
+        Argument.string("proxies", String.valueOf(Math.max(1, sync.proxies().size())))));
+    for (final var entry : sync.proxies().entrySet()) {
+      final boolean self = entry.getKey().equals(sync.proxyId());
+      ctx.getSource().sendMessage(Component.translatable("paperproxy.sync.line",
+          Argument.string("proxy", entry.getKey() + (self ? " *" : "")),
+          Argument.string("players", String.valueOf(self ? server.getPlayerCount()
+              : entry.getValue()))));
     }
     return Command.SINGLE_SUCCESS;
   }

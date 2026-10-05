@@ -61,7 +61,8 @@ BungeeCord API, implemented on top of Velocity:
   Velocity plugins never see BungeeCord classes
 
 Not supported: plugins that use BungeeCord internals (raw packets, `net.md_5.bungee.protocol`,
-Netty pipeline), proxy side scoreboards and dialogs. Such calls log a clear message.
+Netty pipeline), reading the backend scoreboard through `getScoreboard()`, and dialogs. Such
+calls log a clear message.
 
 ### Forwarding per server and PaperGuard
 
@@ -96,6 +97,21 @@ set `settings.bungeecord: true` in its `spigot.yml`.
 - **Watchdog** that names plugins blocking events
 - **ViaVersion**: `paperproxy via install|update` from Modrinth, allowed client versions per
   server, warning when Via runs on proxy and backend
+- **Server groups**: `lobby = ["lobby-1", "lobby-2"]` sends players to the emptiest member and
+  skips full or offline ones
+- **Queues**: full or offline servers get a queue with position in the action bar and priority
+  permissions; players moved away by a server restart are sent back once it is online again
+- **`/hub`** (and `/lobby`) for a server or group of your choice
+- **Bot protection**: connection floods switch on attack mode in which only known players can
+  join; optional limit of accounts per IP and blocked name patterns
+- **Network sync** over Redis for several proxies: network wide player count, `/find` and
+  `/alert` across proxies, no double logins, `/pp network`
+- **Prometheus metrics** at `/metrics` (players, servers, queues, memory), off by default
+- **Restart without kicks**: `shutdown.transfer-to` hands players to another proxy (1.20.5+)
+- **Update folder**: put new jars into `plugins/update`, they replace the old version (same file
+  name or same plugin id) on the next start
+- **Hidden commands**: keep commands like `/server` or `/plugins` out of tab completion
+- **Query passthrough**: server queries show the map, version and plugins of a backend
 - **Health checks**: offline servers are skipped and refused with a message, staff is notified
 - **Maintenance** for the whole network or single servers, with whitelist
 - **Ping cache** against server list floods
@@ -116,10 +132,16 @@ set `settings.bungeecord: true` in its `spigot.yml`.
 | `/pp via install\|update` | `paperproxy.command.via` |
 | `/pp update` | `paperproxy.update` |
 | `pp paperguard key\|rotate` | console only |
+| `/pp network` | `paperproxy.command.servers` |
 | `/alert`, `/find`, `/ip` | `paperproxy.command.alert`, `.find`, `.ip` |
+| `/hub`, `/lobby` | everyone (when `hub-command.target` is set) |
+| `/queue`, `/queue leave` | everyone |
 
 Other permissions: `paperproxy.maintenance.bypass`, `paperproxy.notify.health`,
-`paperproxy.update` (update notice on join).
+`paperproxy.update` (update notice on join), `paperproxy.queue.bypass` (join full servers),
+`paperproxy.queue.priority.<0-100>`, `paperproxy.antibot.bypass` (accounts per IP limit),
+`paperproxy.tabcomplete.bypass` (sees hidden commands),
+`paperproxy.notify.antibot`.
 
 ## API
 

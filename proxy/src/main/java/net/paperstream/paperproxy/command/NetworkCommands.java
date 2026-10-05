@@ -34,6 +34,8 @@ import java.util.Optional;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.translation.Argument;
+import net.kyori.adventure.translation.GlobalTranslator;
+import net.paperstream.paperproxy.sync.NetworkSync;
 
 /**
  * The BungeeCord commands Velocity is missing: {@code /alert}, {@code /find} and {@code /ip},
@@ -67,8 +69,11 @@ public final class NetworkCommands {
               final Component text = MiniMessage.miniMessage().deserialize(
                   net.paperstream.paperproxy.messages.MessageFormatter.legacyToMiniMessage(
                       StringArgumentType.getString(ctx, "message")));
-              server.sendMessage(Component.translatable("paperproxy.alert.format",
-                  Argument.component("message", text)));
+              final Component alert = Component.translatable("paperproxy.alert.format",
+                  Argument.component("message", text));
+              server.sendMessage(alert);
+              // Rendered here, because other proxies may have different messages.yml texts.
+              server.getNetworkSync().broadcast(GlobalTranslator.render(alert, Locale.US));
               return Command.SINGLE_SUCCESS;
             }))));
 
@@ -163,8 +168,18 @@ public final class NetworkCommands {
   }
 
   private static int find(final VelocityServer server, final CommandContext<CommandSource> ctx) {
-    final Optional<Player> player = server.getPlayer(StringArgumentType.getString(ctx, "player"));
+    final String name = StringArgumentType.getString(ctx, "player");
+    final Optional<Player> player = server.getPlayer(name);
     if (player.isEmpty()) {
+      final Optional<NetworkSync.Location> remote = server.getNetworkSync().find(name);
+      if (remote.isPresent()) {
+        ctx.getSource().sendMessage(Component.translatable("paperproxy.find.result-network",
+            Argument.string("player", remote.get().name()),
+            Argument.string("server", remote.get().server().isEmpty() ? "-"
+                : remote.get().server()),
+            Argument.string("proxy", remote.get().proxy())));
+        return Command.SINGLE_SUCCESS;
+      }
       return notOnline(ctx);
     }
     final String where = player.get().getCurrentServer()

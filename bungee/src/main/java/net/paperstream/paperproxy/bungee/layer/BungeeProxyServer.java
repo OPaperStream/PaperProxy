@@ -263,7 +263,7 @@ final class BungeeProxyServer extends ProxyServer {
   @Override
   @Deprecated
   public Collection<String> getDisabledCommands() {
-    return List.of();
+    return layer.config().getDisabledCommands();
   }
 
   @Override

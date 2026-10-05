@@ -360,8 +360,10 @@ final class BungeePlayer extends AbstractSender implements ProxiedPlayer {
 
   @Override
   public Scoreboard getScoreboard() {
+    // Like on BungeeCord, changing it sends nothing to the client. BungeeCord also copies the
+    // backend's scoreboard into it, which PaperProxy does not.
     Unsupported.ignored("ProxiedPlayer.getScoreboard",
-        "proxy side scoreboards are not sent to the client");
+        "it does not contain the backend server's scoreboard");
     return scoreboard;
   }
 
