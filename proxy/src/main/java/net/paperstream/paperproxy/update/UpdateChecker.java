@@ -41,6 +41,7 @@ import java.util.concurrent.TimeUnit;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.translation.Argument;
 import net.paperstream.paperproxy.config.PaperProxyConfig;
+import net.paperstream.paperproxy.network.DiscordWebhook;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -141,6 +142,9 @@ public final class UpdateChecker {
       if (announce) {
         logger.warn("A new PaperProxy version is available: {} (running {}). {}",
             newest.version().text(), current.text(), newest.url());
+        server.getDiscordWebhook().send(DiscordWebhook.Kind.UPDATE, "PaperProxy "
+            + newest.version().text() + " is available (running " + current.text() + "): "
+            + newest.url());
       }
       if (values.autoUpdate() && downloaded == null) {
         if (newest.version().major() != current.major() && !values.autoUpdateAllowMajor()) {

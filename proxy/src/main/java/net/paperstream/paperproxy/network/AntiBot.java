@@ -23,6 +23,7 @@ import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.connection.LoginEvent;
 import com.velocitypowered.api.event.connection.PostLoginEvent;
 import com.velocitypowered.api.event.connection.PreLoginEvent;
+import com.velocitypowered.api.event.proxy.ProxyPingEvent;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.proxy.VelocityServer;
 import com.velocitypowered.proxy.plugin.virtual.VelocityVirtualPlugin;
@@ -34,6 +35,7 @@ import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -70,6 +72,9 @@ public final class AntiBot {
   private volatile boolean attack;
   private volatile @Nullable Pattern blockedNames;
   private volatile String blockedSource = "";
+  /** Address to the time of its last server list ping. */
+  private final Map<InetAddress, Long> pings = new ConcurrentHashMap<>();
+  private static final long PING_VALID_MILLIS = TimeUnit.MINUTES.toMillis(10);
 
   /**
    * Creates the protection.
@@ -165,12 +170,42 @@ public final class AntiBot {
         logger.warn("Bot attack detected ({} connections per second). Only known players "
             + "can join for now.", perSecond);
         notifyStaff("paperproxy.antibot.attack-start");
+        server.getDiscordWebhook().send(DiscordWebhook.Kind.ANTIBOT, ":shield: Bot attack "
+            + "detected (" + perSecond + " connections per second), only known players can join");
       }
     }
-    if (attack && settings.attackKnownOnly() && !known.contains(name.toLowerCase(Locale.ROOT))) {
+    final boolean isKnown = known.contains(name.toLowerCase(Locale.ROOT));
+    final String ping = settings.requirePing();
+    if (!isKnown && (ping.equals("always") || (ping.equals("attack") && attack))) {
+      final InetAddress address = event.getConnection().getRemoteAddress().getAddress();
+      final Long pinged = pings.get(address);
+      if (pinged == null || pinged < now - PING_VALID_MILLIS) {
+        event.setResult(PreLoginEvent.PreLoginComponentResult.denied(
+            Component.translatable("paperproxy.antibot.ping-first")));
+        return;
+      }
+    }
+    if (attack && settings.attackKnownOnly() && !isKnown) {
       event.setResult(PreLoginEvent.PreLoginComponentResult.denied(
           Component.translatable("paperproxy.antibot.attack-kick")));
     }
+  }
+
+  /**
+   * Remembers which addresses looked at the server list, bots usually skip that.
+   *
+   * @param event the event
+   */
+  @Subscribe
+  public void onPing(final ProxyPingEvent event) {
+    if (!settings().enabled() || settings().requirePing().equals("off")) {
+      return;
+    }
+    final long now = System.currentTimeMillis();
+    if (pings.size() > 100_000) {
+      pings.values().removeIf(time -> time < now - PING_VALID_MILLIS);
+    }
+    pings.put(event.getConnection().getRemoteAddress().getAddress(), now);
   }
 
   /**
@@ -215,6 +250,7 @@ public final class AntiBot {
       attack = false;
       logger.info("Bot attack over, everyone can join again.");
       notifyStaff("paperproxy.antibot.attack-end");
+      server.getDiscordWebhook().send(DiscordWebhook.Kind.ANTIBOT, "Bot attack over");
     }
   }
 

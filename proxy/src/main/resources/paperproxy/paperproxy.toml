@@ -74,6 +74,10 @@ attack-known-only = true
 max-accounts-per-ip = 0
 # Names matching this regular expression are refused, e.g. "^(bot|test)_\\d+$". Empty = off.
 blocked-name-pattern = ""
+# New players must have pinged the server list in the last 10 minutes before they can join.
+# "off", "attack" (only during an attack) or "always". Players who joined before are never
+# asked. Most bots skip the server list.
+require-ping = "attack"
 
 [metrics]
 # Prometheus endpoint with players, servers, queues and memory, at http://<bind>:<port>/metrics.
@@ -110,6 +114,33 @@ hidden-commands = []
 passthrough-server = ""
 # Query port of that server, 0 = its game port (query.port in server.properties).
 passthrough-port = 0
+
+[discord]
+# Post network events to a Discord channel. Create the webhook under
+# channel settings > Integrations > Webhooks. Empty = off.
+webhook-url = ""
+username = "PaperProxy"
+# proxy, health, antibot, maintenance, update, restart, punish
+events = ["proxy", "health", "antibot", "maintenance", "update", "restart", "punish"]
+
+[restart]
+# Restart the proxy every day at these times, e.g. ["04:00"]. Players get a countdown and go
+# to shutdown.transfer-to if set. Your start script or panel has to start the proxy again.
+times = []
+# Seconds before the restart at which players are warned.
+warn-seconds = [600, 300, 60, 30, 10, 5, 4, 3, 2, 1]
+
+[party]
+# /party and /pc. Members follow the leader to other servers.
+enabled = true
+max-size = 8
+follow-leader = true
+
+[punish]
+# /ban, /unban, /mute, /unmute, /kick and /banlist for the whole network, stored in
+# punishments.json and shared through [sync]. Off by default because backend servers and ban
+# plugins have commands with the same names. Needs a restart.
+enabled = false
 
 [ping-cache]
 # Server list responses are reused for this many seconds. 0 disables the cache.

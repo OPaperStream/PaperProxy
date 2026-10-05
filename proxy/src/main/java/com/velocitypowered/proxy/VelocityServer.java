@@ -115,10 +115,13 @@ import net.paperstream.paperproxy.bungee.BungeeLayerBootstrap;
 import net.paperstream.paperproxy.bungee.BungeeLayerHandle;
 import net.paperstream.paperproxy.command.NetworkCommands;
 import net.paperstream.paperproxy.command.PaperProxyCommand;
+import net.paperstream.paperproxy.command.PartyCommand;
+import net.paperstream.paperproxy.command.PunishCommands;
 import net.paperstream.paperproxy.config.PaperProxyConfig;
 import net.paperstream.paperproxy.forwarding.Forwarding;
 import net.paperstream.paperproxy.messages.PaperProxyMessages;
 import net.paperstream.paperproxy.network.AntiBot;
+import net.paperstream.paperproxy.network.DiscordWebhook;
 import net.paperstream.paperproxy.network.HealthChecker;
 import net.paperstream.paperproxy.network.HiddenCommands;
 import net.paperstream.paperproxy.network.MetricsEndpoint;
@@ -126,10 +129,13 @@ import net.paperstream.paperproxy.network.Motd;
 import net.paperstream.paperproxy.network.NetworkRules;
 import net.paperstream.paperproxy.network.PingCache;
 import net.paperstream.paperproxy.network.QueryPassthrough;
+import net.paperstream.paperproxy.network.RestartScheduler;
 import net.paperstream.paperproxy.network.ServerGroups;
 import net.paperstream.paperproxy.network.ServerQueue;
+import net.paperstream.paperproxy.party.Parties;
 import net.paperstream.paperproxy.plugin.PluginReloader;
 import net.paperstream.paperproxy.plugin.UpdateFolder;
+import net.paperstream.paperproxy.punish.Punishments;
 import net.paperstream.paperproxy.sync.NetworkSync;
 import net.paperstream.paperproxy.update.UpdateChecker;
 import org.apache.logging.log4j.LogManager;
@@ -215,6 +221,10 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
   private final AntiBot antiBot = new AntiBot(this, Path.of(""));
   private final MetricsEndpoint metricsEndpoint = new MetricsEndpoint(this);
   private final NetworkSync networkSync = new NetworkSync(this);
+  private final DiscordWebhook discordWebhook = new DiscordWebhook(this);
+  private final RestartScheduler restartScheduler = new RestartScheduler(this);
+  private final Punishments punishments = new Punishments(this, Path.of(""));
+  private final Parties parties = new Parties(this);
   private volatile boolean listening;
   private final Motd motd = new Motd(Path.of(""));
   private final PluginReloader pluginReloader = new PluginReloader(this);
@@ -365,6 +375,42 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
    */
   public NetworkSync getNetworkSync() {
     return networkSync;
+  }
+
+  /**
+   * Returns the Discord webhook sender.
+   *
+   * @return the webhook
+   */
+  public DiscordWebhook getDiscordWebhook() {
+    return discordWebhook;
+  }
+
+  /**
+   * Returns the restart scheduler.
+   *
+   * @return the scheduler
+   */
+  public RestartScheduler getRestartScheduler() {
+    return restartScheduler;
+  }
+
+  /**
+   * Returns the bans and mutes.
+   *
+   * @return the punishments
+   */
+  public Punishments getPunishments() {
+    return punishments;
+  }
+
+  /**
+   * Returns the parties.
+   *
+   * @return the parties
+   */
+  public Parties getParties() {
+    return parties;
   }
 
   /**
@@ -535,10 +581,20 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
     eventManager.register(VelocityVirtualPlugin.INSTANCE, new HiddenCommands(this));
     eventManager.register(VelocityVirtualPlugin.INSTANCE, new QueryPassthrough(this));
     antiBot.start();
+    eventManager.register(VelocityVirtualPlugin.INSTANCE, punishments);
+    eventManager.register(VelocityVirtualPlugin.INSTANCE, parties);
+    punishments.start();
+    restartScheduler.start();
     eventManager.register(VelocityVirtualPlugin.INSTANCE, motd);
     eventManager.register(VelocityVirtualPlugin.INSTANCE, updateChecker);
     updateChecker.start();
     NetworkCommands.register(this);
+    if (paperProxyConfig.values().party().enabled()) {
+      PartyCommand.register(this);
+    }
+    if (paperProxyConfig.values().punish()) {
+      PunishCommands.register(this);
+    }
 
     for (ServerInfo cliServer : options.getServers()) {
       servers.register(cliServer);
@@ -571,6 +627,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
     }
     listening = true;
     networkSync.apply();
+    discordWebhook.send(DiscordWebhook.Kind.PROXY, "Proxy started");
 
     final Boolean haproxy = this.options.isHaproxy();
     if (haproxy != null) {
@@ -864,6 +921,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
 
     Runnable shutdownProcess = () -> {
       logger.info("Shutting down the proxy...");
+      discordWebhook.send(DiscordWebhook.Kind.PROXY, "Proxy stopping");
 
       // Shutdown the connection manager, this should be
       // done first to refuse new connections

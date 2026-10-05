@@ -27,10 +27,13 @@ import com.velocitypowered.api.command.BrigadierCommand;
 import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.permission.Tristate;
 import com.velocitypowered.api.proxy.Player;
-import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocitypowered.api.proxy.ServerConnection;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
+import com.velocitypowered.proxy.VelocityServer;
 import com.velocitypowered.proxy.plugin.virtual.VelocityVirtualPlugin;
+import java.util.Collection;
+import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import net.kyori.adventure.text.Component;
@@ -41,11 +44,11 @@ import net.kyori.adventure.text.minimessage.translation.Argument;
  * Implements the Velocity default {@code /send} command.
  */
 public class SendCommand {
-  private final ProxyServer server;
+  private final VelocityServer server;
   private static final String SERVER_ARG = "server";
   private static final String PLAYER_ARG = "player";
 
-  public SendCommand(ProxyServer server) {
+  public SendCommand(VelocityServer server) {
     this.server = server;
   }
 
@@ -92,11 +95,24 @@ public class SendCommand {
               builder.suggest(server.getServerInfo().getName());
             }
           }
+          for (final String group : this.server.getPaperProxyConfig().values().groups().keySet()) {
+            if (group.regionMatches(true, 0, argument, 0, argument.length())) {
+              builder.suggest(group);
+            }
+          }
           return builder.buildFuture();
         })
         .executes(this::send)
         .build();
     playerNode.then(serverNode);
+    // PaperProxy: /send server <from> <to> moves everyone on one server.
+    rootNode.then(BrigadierCommand.literalArgumentBuilder("server")
+        .then(BrigadierCommand.requiredArgumentBuilder("from", StringArgumentType.word())
+            .suggests(serverNode.getCustomSuggestions())
+            .then(BrigadierCommand.requiredArgumentBuilder(SERVER_ARG, StringArgumentType.word())
+                .suggests(serverNode.getCustomSuggestions())
+                .executes(ctx -> send(ctx, "server:"
+                    + ctx.getArgument("from", String.class))))));
     rootNode.then(playerNode.build());
     final BrigadierCommand command = new BrigadierCommand(rootNode);
     server.getCommandManager().register(
@@ -115,55 +131,64 @@ public class SendCommand {
   }
 
   private int send(final CommandContext<CommandSource> context) {
-    final String serverName = context.getArgument(SERVER_ARG, String.class);
-    final String player = context.getArgument(PLAYER_ARG, String.class);
+    return send(context, context.getArgument(PLAYER_ARG, String.class));
+  }
 
+  private int send(final CommandContext<CommandSource> context, final String player) {
+    final String serverName = context.getArgument(SERVER_ARG, String.class);
+
+    // PaperProxy: the target may also be a server group, then every player goes to the
+    // emptiest usable member.
+    final boolean group = server.getPaperProxyConfig().values().groups()
+        .containsKey(serverName.toLowerCase(Locale.ROOT));
     final Optional<RegisteredServer> maybeServer = server.getServer(serverName);
 
-    if (maybeServer.isEmpty()) {
+    if (maybeServer.isEmpty() && !group) {
       context.getSource().sendMessage(
           CommandMessages.SERVER_DOES_NOT_EXIST.arguments(Argument.string("server", serverName))
       );
       return 0;
     }
 
-    final RegisteredServer targetServer = maybeServer.get();
-
-    final Optional<Player> maybePlayer = server.getPlayer(player);
-    if (maybePlayer.isEmpty()
-        && !Objects.equals(player, "all")
-        && !Objects.equals(player, "current")) {
-      context.getSource().sendMessage(
-          CommandMessages.PLAYER_NOT_FOUND.arguments(Argument.string("player", player))
-      );
-      return 0;
-    }
-
+    final Collection<Player> targets;
     if (Objects.equals(player, "all")) {
-      for (final Player p : server.getAllPlayers()) {
-        p.createConnectionRequest(targetServer).fireAndForget();
-      }
-      return Command.SINGLE_SUCCESS;
-    }
-
-    if (Objects.equals(player, "current")) {
+      targets = server.getAllPlayers();
+    } else if (Objects.equals(player, "current")) {
       if (!(context.getSource() instanceof Player source)) {
         context.getSource().sendMessage(CommandMessages.PLAYERS_ONLY);
         return 0;
       }
-
       final Optional<ServerConnection> connectedServer = source.getCurrentServer();
-      if (connectedServer.isPresent()) {
-        for (final Player p : connectedServer.get().getServer().getPlayersConnected()) {
-          p.createConnectionRequest(maybeServer.get()).fireAndForget();
-        }
-        return Command.SINGLE_SUCCESS;
+      if (connectedServer.isEmpty()) {
+        return 0;
       }
-      return 0;
+      targets = connectedServer.get().getServer().getPlayersConnected();
+    } else if (player.regionMatches(true, 0, "server:", 0, 7)) {
+      final Optional<RegisteredServer> from = server.getServer(player.substring(7));
+      if (from.isEmpty()) {
+        context.getSource().sendMessage(CommandMessages.SERVER_DOES_NOT_EXIST
+            .arguments(Argument.string("server", player.substring(7))));
+        return 0;
+      }
+      targets = from.get().getPlayersConnected();
+    } else {
+      final Optional<Player> maybePlayer = server.getPlayer(player);
+      if (maybePlayer.isEmpty()) {
+        context.getSource().sendMessage(
+            CommandMessages.PLAYER_NOT_FOUND.arguments(Argument.string("player", player))
+        );
+        return 0;
+      }
+      targets = List.of(maybePlayer.get());
     }
 
-    // The player at this point must be present
-    maybePlayer.orElseThrow().createConnectionRequest(targetServer).fireAndForget();
+    for (final Player p : List.copyOf(targets)) {
+      final Optional<RegisteredServer> target = group
+          ? server.getServerGroups().best(p, serverName,
+              p.getCurrentServer().map(ServerConnection::getServer).orElse(null))
+          : maybeServer;
+      target.ifPresent(t -> p.createConnectionRequest(t).fireAndForget());
+    }
     return Command.SINGLE_SUCCESS;
   }
 }

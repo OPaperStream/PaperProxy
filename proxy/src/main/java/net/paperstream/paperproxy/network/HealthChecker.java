@@ -168,6 +168,9 @@ public final class HealthChecker {
     } else {
       logger.warn("Server {} went offline", name);
     }
+    server.getDiscordWebhook().send(DiscordWebhook.Kind.HEALTH, status == Status.ONLINE
+        ? ":green_circle: Server **" + name + "** is back online"
+        : ":red_circle: Server **" + name + "** went offline");
     final Component message = Component.translatable(key, Argument.string("server", name));
     final String permission = server.getPaperProxyConfig().values().healthNotifyPermission();
     server.getAllPlayers().stream()

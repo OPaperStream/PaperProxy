@@ -18,6 +18,7 @@
 package net.paperstream.paperproxy.command;
 
 import com.mojang.brigadier.Command;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.velocitypowered.api.command.BrigadierCommand;
@@ -33,6 +34,7 @@ import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.translation.Argument;
 import net.paperstream.paperproxy.PaperProxyBranding;
+import net.paperstream.paperproxy.network.DiscordWebhook;
 import net.paperstream.paperproxy.update.UpdateChecker;
 import net.paperstream.paperproxy.via.ViaInstaller;
 
@@ -113,6 +115,26 @@ public final class PaperProxyCommand {
             .requires(source -> source.getPermissionValue("paperproxy.command.servers")
                 == Tristate.TRUE)
             .executes(ctx -> servers(server, ctx)))
+        .then(BrigadierCommand.literalArgumentBuilder("restart")
+            .requires(source -> source.getPermissionValue("paperproxy.command.restart")
+                == Tristate.TRUE)
+            .then(BrigadierCommand.literalArgumentBuilder("cancel").executes(ctx -> {
+              final boolean cancelled = server.getRestartScheduler().cancel();
+              ctx.getSource().sendMessage(Component.translatable(cancelled
+                  ? "paperproxy.restart.cancelled" : "paperproxy.restart.none"));
+              if (cancelled) {
+                server.getDiscordWebhook().send(DiscordWebhook.Kind.RESTART,
+                    "Planned proxy restart cancelled");
+              }
+              return Command.SINGLE_SUCCESS;
+            }))
+            .then(BrigadierCommand.requiredArgumentBuilder("seconds",
+                    IntegerArgumentType.integer(1, 86_400))
+                .executes(ctx -> restart(server, ctx, ""))
+                .then(BrigadierCommand.requiredArgumentBuilder("reason",
+                        StringArgumentType.greedyString())
+                    .executes(ctx -> restart(server, ctx,
+                        StringArgumentType.getString(ctx, "reason"))))))
         .then(BrigadierCommand.literalArgumentBuilder("network")
             .requires(source -> source.getPermissionValue("paperproxy.command.servers")
                 == Tristate.TRUE)
@@ -210,6 +232,9 @@ public final class PaperProxyCommand {
     }
     try {
       server.getPaperProxyConfig().setMaintenance(target, enabled);
+      server.getDiscordWebhook().send(DiscordWebhook.Kind.MAINTENANCE, (enabled
+          ? ":construction: Maintenance on" : ":white_check_mark: Maintenance off")
+          + (target == null ? "" : " for **" + target + "**"));
     } catch (final java.io.IOException e) {
       ctx.getSource().sendMessage(Component.text("Unable to save paperproxy.toml: "
           + e.getMessage(), NamedTextColor.RED));
@@ -313,5 +338,14 @@ public final class PaperProxyCommand {
         .decoration(TextDecoration.UNDERLINED, true)
         .clickEvent(ClickEvent.openUrl(url))
         .build();
+  }
+
+  private static int restart(final VelocityServer server, final CommandContext<CommandSource> ctx,
+                             final String reason) {
+    final int seconds = IntegerArgumentType.getInteger(ctx, "seconds");
+    server.getRestartScheduler().schedule(seconds, reason);
+    ctx.getSource().sendMessage(Component.translatable("paperproxy.restart.planned",
+        Argument.string("seconds", String.valueOf(seconds))));
+    return Command.SINGLE_SUCCESS;
   }
 }

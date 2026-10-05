@@ -38,9 +38,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
 import net.paperstream.paperproxy.config.PaperProxyConfig;
@@ -83,6 +85,7 @@ public final class NetworkSync {
   private volatile Map<String, Integer> proxies = Map.of();
   private volatile boolean running;
   private volatile long generation;
+  private final Map<String, Consumer<String>> handlers = new ConcurrentHashMap<>();
 
   /**
    * Creates the sync.
@@ -225,6 +228,26 @@ public final class NetworkSync {
    */
   public void broadcast(final Component message) {
     publish("alert", GsonComponentSerializer.gson().serialize(message));
+  }
+
+  /**
+   * Sends a custom message to every other proxy.
+   *
+   * @param type the message type, see {@link #on(String, Consumer)}
+   * @param data the payload
+   */
+  public void send(final String type, final String data) {
+    publish(type, data);
+  }
+
+  /**
+   * Handles a custom message type from other proxies.
+   *
+   * @param type the message type
+   * @param handler called with the payload
+   */
+  public void on(final String type, final Consumer<String> handler) {
+    handlers.put(type, handler);
   }
 
   private Optional<Location> location(final RedisConnection current, final String uuid)
@@ -445,7 +468,14 @@ public final class NetworkSync {
         case "kick" -> server.getPlayer(UUID.fromString(data)).ifPresent(player ->
             player.disconnect(Component.translatable(
                 "paperproxy.sync.logged-in-elsewhere")));
-        default -> logger.debug("Unknown network sync message {}", type);
+        default -> {
+          final Consumer<String> handler = handlers.get(type);
+          if (handler != null) {
+            handler.accept(data);
+          } else {
+            logger.debug("Unknown network sync message {}", type);
+          }
+        }
       }
     } catch (final RuntimeException e) {
       logger.warn("Ignoring a broken network sync message: {}", e.getMessage());

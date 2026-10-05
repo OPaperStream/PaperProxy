@@ -102,7 +102,8 @@ set `settings.bungeecord: true` in its `spigot.yml`.
 - **Queues**: full or offline servers get a queue with position in the action bar and priority
   permissions; players moved away by a server restart are sent back once it is online again
 - **`/hub`** (and `/lobby`) for a server or group of your choice
-- **Bot protection**: connection floods switch on attack mode in which only known players can
+- **Bot protection**: new players must ping the server list before they join (during attacks or
+  always), connection floods switch on attack mode in which only known players can
   join; optional limit of accounts per IP and blocked name patterns
 - **Network sync** over Redis for several proxies: network wide player count, `/find` and
   `/alert` across proxies, no double logins, `/pp network`
@@ -112,6 +113,11 @@ set `settings.bungeecord: true` in its `spigot.yml`.
   name or same plugin id) on the next start
 - **Hidden commands**: keep commands like `/server` or `/plugins` out of tab completion
 - **Query passthrough**: server queries show the map, version and plugins of a backend
+- **Parties**: `/party` and `/pc`, members follow their leader from server to server
+- **Bans, mutes and kicks** for the whole network (opt-in), shared across proxies
+- **Planned restarts** with countdown, titles and transfer to another proxy
+- **Discord webhook** for servers going down, bot attacks, maintenance, updates, bans
+- **`/send` for groups and servers**: `/send all lobby`, `/send server game-1 lobby`
 - **Health checks**: offline servers are skipped and refused with a message, staff is notified
 - **Maintenance** for the whole network or single servers, with whitelist
 - **Ping cache** against server list floods
@@ -136,11 +142,14 @@ set `settings.bungeecord: true` in its `spigot.yml`.
 | `/alert`, `/find`, `/ip` | `paperproxy.command.alert`, `.find`, `.ip` |
 | `/hub`, `/lobby` | everyone (when `hub-command.target` is set) |
 | `/queue`, `/queue leave` | everyone |
+| `/party`, `/pc` | everyone |
+| `/ban`, `/unban`, `/banlist`, `/mute`, `/unmute`, `/kick` | `paperproxy.command.ban`, `.mute`, `.kick` (only with `punish.enabled`) |
+| `/paperproxy restart <seconds> [reason]`, `restart cancel` | `paperproxy.command.restart` |
 
 Other permissions: `paperproxy.maintenance.bypass`, `paperproxy.notify.health`,
 `paperproxy.update` (update notice on join), `paperproxy.queue.bypass` (join full servers),
 `paperproxy.queue.priority.<0-100>`, `paperproxy.antibot.bypass` (accounts per IP limit),
-`paperproxy.tabcomplete.bypass` (sees hidden commands),
+`paperproxy.tabcomplete.bypass` (sees hidden commands), `paperproxy.punish.exempt`,
 `paperproxy.notify.antibot`.
 
 ## API

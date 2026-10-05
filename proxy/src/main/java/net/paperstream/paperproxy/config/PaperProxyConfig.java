@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -32,6 +33,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import net.paperstream.paperproxy.network.DiscordWebhook;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -79,6 +81,10 @@ public final class PaperProxyConfig {
    * @param hiddenCommands commands hidden from tab completion (lower case)
    * @param queryServer backend whose query answer the proxy passes on, empty if disabled
    * @param queryPort query port of that backend, 0 = its game port
+   * @param discord Discord webhook settings
+   * @param restart planned restart settings
+   * @param party party settings
+   * @param punish whether the ban, mute and kick commands are registered
    */
   public record Values(Map<String, PlayerInfoForwarding> forwarding, int paperGuardMaxAgeSeconds,
                        Map<String, VersionRange> versions, boolean healthCheck,
@@ -91,7 +97,8 @@ public final class PaperProxyConfig {
                        Queue queue, String hubTarget, List<String> hubAliases,
                        AntiBot antiBot, Metrics metrics, String transferOnShutdown,
                        Sync sync, Set<String> hiddenCommands, String queryServer,
-                       int queryPort) {
+                       int queryPort, Discord discord, Restart restart, Party party,
+                       boolean punish) {
 
     static Values defaults() {
       return new Values(Map.of(), 10, Map.of(), true, 10, "paperproxy.notify.health", false,
@@ -99,7 +106,8 @@ public final class PaperProxyConfig {
           Set.of("viaversion", "viabackwards", "viarewind", "luckperms", "geyser", "floodgate"),
           true, "release", false, false, Map.of(), Queue.defaults(), "",
           List.of("hub", "lobby"), AntiBot.defaults(), Metrics.defaults(), "",
-          Sync.defaults(), Set.of(), "", 0);
+          Sync.defaults(), Set.of(), "", 0, Discord.defaults(), Restart.defaults(),
+          Party.defaults(), false);
     }
   }
 
@@ -112,13 +120,55 @@ public final class PaperProxyConfig {
    * @param attackKnownOnly whether only known players may join during an attack
    * @param maxAccountsPerIp players online from one IP, 0 = unlimited
    * @param blockedNamePattern regular expression for refused names, empty = none
+   * @param requirePing "off", "attack" or "always": new players must ping the server list first
    */
   public record AntiBot(boolean enabled, int attackThreshold, int attackDurationSeconds,
                         boolean attackKnownOnly, int maxAccountsPerIp,
-                        String blockedNamePattern) {
+                        String blockedNamePattern, String requirePing) {
 
     static AntiBot defaults() {
-      return new AntiBot(true, 30, 60, true, 0, "");
+      return new AntiBot(true, 30, 60, true, 0, "", "attack");
+    }
+  }
+
+  /**
+   * Discord webhook settings.
+   *
+   * @param webhookUrl the webhook URL, empty = off
+   * @param username name shown in Discord
+   * @param events which events are posted
+   */
+  public record Discord(String webhookUrl, String username, Set<DiscordWebhook.Kind> events) {
+
+    static Discord defaults() {
+      return new Discord("", "PaperProxy", Set.of(DiscordWebhook.Kind.values()));
+    }
+  }
+
+  /**
+   * Planned restart settings.
+   *
+   * @param times daily restart times
+   * @param warnings seconds before a restart at which players are warned
+   */
+  public record Restart(List<LocalTime> times, List<Integer> warnings) {
+
+    static Restart defaults() {
+      return new Restart(List.of(), List.of(600, 300, 60, 30, 10, 5, 4, 3, 2, 1));
+    }
+  }
+
+  /**
+   * Party settings.
+   *
+   * @param enabled whether /party is registered
+   * @param maxSize the most members a party can have
+   * @param follow whether members follow the leader to other servers
+   */
+  public record Party(boolean enabled, int maxSize, boolean follow) {
+
+    static Party defaults() {
+      return new Party(true, 8, true);
     }
   }
 
@@ -321,7 +371,7 @@ public final class PaperProxyConfig {
             errors),
         bool(config, "antibot.attack-known-only", a.attackKnownOnly(), errors),
         integer(config, "antibot.max-accounts-per-ip", a.maxAccountsPerIp(), 0, 1000, errors),
-        namePattern);
+        namePattern, requirePing(config, a.requirePing(), errors));
     final Metrics m = Metrics.defaults();
     final Metrics metrics = new Metrics(
         bool(config, "metrics.enabled", m.enabled(), errors),
@@ -372,7 +422,72 @@ public final class PaperProxyConfig {
         hiddenCommands(config.get("tab-complete.hidden-commands")),
         string(config, "query.passthrough-server", d.queryServer(), errors)
             .toLowerCase(Locale.ROOT).trim(),
-        integer(config, "query.passthrough-port", d.queryPort(), 0, 65535, errors));
+        integer(config, "query.passthrough-port", d.queryPort(), 0, 65535, errors),
+        discord(config, errors), restart(config, errors),
+        new Party(bool(config, "party.enabled", d.party().enabled(), errors),
+            integer(config, "party.max-size", d.party().maxSize(), 2, 100, errors),
+            bool(config, "party.follow-leader", d.party().follow(), errors)),
+        bool(config, "punish.enabled", d.punish(), errors));
+  }
+
+  private static String requirePing(final Config config, final String def,
+                                    final List<String> errors) {
+    final String value = string(config, "antibot.require-ping", def, errors)
+        .toLowerCase(Locale.ROOT);
+    if (!List.of("off", "attack", "always").contains(value)) {
+      errors.add("antibot.require-ping: '" + value + "' must be off, attack or always");
+      return def;
+    }
+    return value;
+  }
+
+  private static Discord discord(final Config config, final List<String> errors) {
+    final Discord d = Discord.defaults();
+    final String url = string(config, "discord.webhook-url", d.webhookUrl(), errors).trim();
+    final boolean web = url.startsWith("https://") || url.startsWith("http://");
+    if (!url.isEmpty() && !web) {
+      errors.add("discord.webhook-url: must start with https://");
+    }
+    Set<DiscordWebhook.Kind> events = d.events();
+    if (config.get("discord.events") != null) {
+      events = new LinkedHashSet<>();
+      for (final String name : lowerSet(config.get("discord.events"))) {
+        try {
+          events.add(DiscordWebhook.Kind.valueOf(name.toUpperCase(Locale.ROOT)));
+        } catch (final IllegalArgumentException e) {
+          errors.add("discord.events: unknown event '" + name + "' (proxy, health, antibot, "
+              + "maintenance, update, restart, punish)");
+        }
+      }
+      events = Set.copyOf(events);
+    }
+    return new Discord(web ? url : "",
+        string(config, "discord.username", d.username(), errors), events);
+  }
+
+  private static Restart restart(final Config config, final List<String> errors) {
+    final Restart d = Restart.defaults();
+    final List<LocalTime> times = new ArrayList<>();
+    for (final String time : stringList(config.get("restart.times"))) {
+      try {
+        times.add(LocalTime.parse(time.trim()));
+      } catch (final java.time.format.DateTimeParseException e) {
+        errors.add("restart.times: '" + time + "' is not a time like \"04:00\"");
+      }
+    }
+    List<Integer> warnings = d.warnings();
+    if (config.get("restart.warn-seconds") instanceof List<?> list) {
+      warnings = new ArrayList<>();
+      for (final Object o : list) {
+        if (o instanceof Number n && n.intValue() > 0) {
+          warnings.add(n.intValue());
+        } else {
+          errors.add("restart.warn-seconds: '" + o + "' must be a positive number");
+        }
+      }
+      warnings = List.copyOf(warnings);
+    }
+    return new Restart(List.copyOf(times), warnings);
   }
 
   private static Set<String> hiddenCommands(final @Nullable Object value) {
