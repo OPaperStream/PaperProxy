@@ -18,6 +18,7 @@
 package net.paperstream.paperproxy.network;
 
 import com.sun.net.httpserver.HttpServer;
+import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
 import com.velocitypowered.proxy.VelocityServer;
 import java.io.IOException;
@@ -26,6 +27,8 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryUsage;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.Executors;
 import net.paperstream.paperproxy.config.PaperProxyConfig;
 import org.apache.logging.log4j.LogManager;
@@ -121,6 +124,35 @@ public final class MetricsEndpoint {
           .append(server.getServerQueue().size(registered.getServerInfo().getName()))
           .append('\n');
     }
+    final ProxyStats stats = server.getProxyStats();
+    counter(out, "paperproxy_logins_total", "Successful logins", stats.logins.sum());
+    counter(out, "paperproxy_logins_refused_total", "Logins refused by the proxy",
+        stats.refusedPreLogin.sum() + stats.refusedLogin.sum());
+    out.append("# HELP paperproxy_server_connects_total Finished connections to a server\n")
+        .append("# TYPE paperproxy_server_connects_total counter\n");
+    stats.connects.forEach((name, timing) -> out.append("paperproxy_server_connects_total{server=\"")
+        .append(label(name)).append("\"} ").append(timing.count.sum()).append('\n'));
+    out.append("# HELP paperproxy_server_connect_seconds_total Time spent connecting to a server\n")
+        .append("# TYPE paperproxy_server_connect_seconds_total counter\n");
+    stats.connects.forEach((name, timing) -> out.append(
+            "paperproxy_server_connect_seconds_total{server=\"").append(label(name)).append("\"} ")
+        .append(timing.millis.sum() / 1000.0).append('\n'));
+    out.append("# HELP paperproxy_server_kicks_total Players kicked by a backend server\n")
+        .append("# TYPE paperproxy_server_kicks_total counter\n");
+    stats.kicks.forEach((name, count) -> out.append("paperproxy_server_kicks_total{server=\"")
+        .append(label(name)).append("\"} ").append(count.sum()).append('\n'));
+    out.append("# HELP paperproxy_players_by_version Players by client version\n")
+        .append("# TYPE paperproxy_players_by_version gauge\n");
+    final Map<String, Long> versions = new TreeMap<>();
+    for (final Player player : server.getAllPlayers()) {
+      versions.merge(player.getProtocolVersion().getMostRecentSupportedVersion(), 1L, Long::sum);
+    }
+    versions.forEach((version, count) -> out.append("paperproxy_players_by_version{version=\"")
+        .append(label(version)).append("\"} ").append(count).append('\n'));
+    if (server.getNetworkSync().connected()) {
+      gauge(out, "paperproxy_network_players", "Players on all synced proxies",
+          server.getNetworkSync().networkPlayerCount());
+    }
     gauge(out, "paperproxy_antibot_attack", "1 while bot attack mode is on",
         server.getAntiBot().underAttack() ? 1 : 0);
     final MemoryUsage heap = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage();
@@ -133,6 +165,13 @@ public final class MetricsEndpoint {
     return out.toString();
   }
 
+  private static void counter(final StringBuilder out, final String name, final String help,
+                              final long value) {
+    out.append("# HELP ").append(name).append(' ').append(help).append('\n')
+        .append("# TYPE ").append(name).append(" counter\n")
+        .append(name).append(' ').append(value).append('\n');
+  }
+
   private static void gauge(final StringBuilder out, final String name, final String help,
                             final long value) {
     out.append("# HELP ").append(name).append(' ').append(help).append('\n')
@@ -141,6 +180,10 @@ public final class MetricsEndpoint {
   }
 
   private static String label(final RegisteredServer registered) {
-    return registered.getServerInfo().getName().replace("\\", "\\\\").replace("\"", "\\\"");
+    return label(registered.getServerInfo().getName());
+  }
+
+  private static String label(final String text) {
+    return text.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n");
   }
 }

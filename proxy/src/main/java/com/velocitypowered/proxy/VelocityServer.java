@@ -128,6 +128,7 @@ import net.paperstream.paperproxy.network.MetricsEndpoint;
 import net.paperstream.paperproxy.network.Motd;
 import net.paperstream.paperproxy.network.NetworkRules;
 import net.paperstream.paperproxy.network.PingCache;
+import net.paperstream.paperproxy.network.ProxyStats;
 import net.paperstream.paperproxy.network.QueryPassthrough;
 import net.paperstream.paperproxy.network.RestartScheduler;
 import net.paperstream.paperproxy.network.ServerGroups;
@@ -225,6 +226,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
   private final RestartScheduler restartScheduler = new RestartScheduler(this);
   private final Punishments punishments = new Punishments(this, Path.of(""));
   private final Parties parties = new Parties(this);
+  private final ProxyStats proxyStats = new ProxyStats();
   private volatile boolean listening;
   private final Motd motd = new Motd(Path.of(""));
   private final PluginReloader pluginReloader = new PluginReloader(this);
@@ -402,6 +404,15 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
    */
   public Punishments getPunishments() {
     return punishments;
+  }
+
+  /**
+   * Returns the counters for the metrics endpoint.
+   *
+   * @return the counters
+   */
+  public ProxyStats getProxyStats() {
+    return proxyStats;
   }
 
   /**
@@ -583,6 +594,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
     antiBot.start();
     eventManager.register(VelocityVirtualPlugin.INSTANCE, punishments);
     eventManager.register(VelocityVirtualPlugin.INSTANCE, parties);
+    eventManager.register(VelocityVirtualPlugin.INSTANCE, proxyStats);
     punishments.start();
     restartScheduler.start();
     eventManager.register(VelocityVirtualPlugin.INSTANCE, motd);

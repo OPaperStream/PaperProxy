@@ -56,6 +56,7 @@ final class BungeePlayer extends AbstractSender implements ProxiedPlayer {
   private final Player player;
   private final BungeePendingConnection pending;
   private final Scoreboard scoreboard = new Scoreboard();
+  private final PacketBridge packets;
   private volatile String displayName;
   private volatile @Nullable ServerInfo reconnectServer;
   private volatile ServerConnectEvent.Reason nextConnectReason = ServerConnectEvent.Reason.PLUGIN;
@@ -63,6 +64,7 @@ final class BungeePlayer extends AbstractSender implements ProxiedPlayer {
   BungeePlayer(final BungeeLayer layer, final Player player) {
     super(layer);
     this.player = player;
+    this.packets = new PacketBridge(player);
     this.pending = new BungeePendingConnection(layer, player, player.getUsername(),
         player.getUniqueId());
     this.displayName = player.getUsername();
@@ -448,7 +450,7 @@ final class BungeePlayer extends AbstractSender implements ProxiedPlayer {
 
   @Override
   public Unsafe unsafe() {
-    return Unsupported.PACKETS;
+    return packets;
   }
 
   @Override

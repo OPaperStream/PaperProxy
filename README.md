@@ -60,9 +60,12 @@ BungeeCord API, implemented on top of Velocity:
 - The layer runs in its own class loader and only starts when a BungeeCord plugin is present;
   Velocity plugins never see BungeeCord classes
 
-Not supported: plugins that use BungeeCord internals (raw packets, `net.md_5.bungee.protocol`,
-Netty pipeline), reading the backend scoreboard through `getScoreboard()`, and dialogs. Such
-calls log a clear message.
+- `unsafe().sendPacket` works: scoreboards, teams, tab list entries and boss bars sent by
+  scoreboard and tab plugins are encoded for the player's version (up to 1.21.7, the newest
+  version the BungeeCord protocol classes know)
+
+Not supported: plugins that hook into the Netty pipeline or read packets, reading the backend
+scoreboard through `getScoreboard()`, and dialogs. Such calls log a clear message.
 
 ### Forwarding per server and PaperGuard
 
@@ -107,7 +110,9 @@ set `settings.bungeecord: true` in its `spigot.yml`.
   join; optional limit of accounts per IP and blocked name patterns
 - **Network sync** over Redis for several proxies: network wide player count, `/find` and
   `/alert` across proxies, no double logins, `/pp network`
-- **Prometheus metrics** at `/metrics` (players, servers, queues, memory), off by default
+- **Prometheus metrics** at `/metrics` (players, servers, queues, logins, connect times, kicks,
+  client versions, memory), off by default, with a ready
+  [Grafana dashboard](docs/grafana/paperproxy-dashboard.json)
 - **Restart without kicks**: `shutdown.transfer-to` hands players to another proxy (1.20.5+)
 - **Update folder**: put new jars into `plugins/update`, they replace the old version (same file
   name or same plugin id) on the next start
