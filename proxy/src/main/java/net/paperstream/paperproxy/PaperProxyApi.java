@@ -27,6 +27,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.ComponentLike;
 import net.kyori.adventure.text.minimessage.translation.Argument;
 import net.paperstream.paperproxy.api.PaperProxy;
+import net.paperstream.paperproxy.api.party.PartyManager;
 
 /**
  * Implements the public {@link PaperProxy} API.
@@ -78,6 +79,11 @@ public final class PaperProxyApi implements PaperProxy {
   @Override
   public String getForwardingMode(final String server) {
     return this.server.getForwarding().modeFor(server).name().toLowerCase(Locale.ROOT);
+  }
+
+  @Override
+  public PartyManager getParties() {
+    return server.getParties();
   }
 
   @Override

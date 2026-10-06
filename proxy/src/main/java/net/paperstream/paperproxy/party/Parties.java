@@ -23,47 +23,92 @@ import com.velocitypowered.api.event.player.ServerConnectedEvent;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
 import com.velocitypowered.proxy.VelocityServer;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.translation.Argument;
+import net.paperstream.paperproxy.api.event.PartyFollowEvent;
+import net.paperstream.paperproxy.api.event.PartyJoinEvent;
+import net.paperstream.paperproxy.api.event.PartyLeaveEvent;
+import net.paperstream.paperproxy.api.party.PartyManager;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Parties: a leader and members who follow the leader from server to server.
  */
-public final class Parties {
+public final class Parties implements PartyManager {
 
   /** One party. The first member is the leader. */
-  public static final class Party {
+  public final class Party implements net.paperstream.paperproxy.api.party.Party {
+    private final UUID id = UUID.randomUUID();
     private final List<UUID> members = new CopyOnWriteArrayList<>();
+    private volatile boolean active = true;
 
     Party(final UUID leader) {
       members.add(leader);
     }
 
+    @Override
+    public UUID getId() {
+      return id;
+    }
+
     /**
-     * Returns the leader.
+     * Returns the leader's UUID.
      *
-     * @return the leader's UUID
+     * @return the leader
      */
     public UUID leader() {
       return members.get(0);
     }
 
     /**
-     * Returns all members, leader first.
+     * Returns all member UUIDs, leader first.
      *
      * @return the members
      */
     public List<UUID> members() {
       return List.copyOf(members);
+    }
+
+    @Override
+    public Player getLeader() {
+      return server.getPlayer(leader()).orElseThrow();
+    }
+
+    @Override
+    public List<Player> getMembers() {
+      final List<Player> out = new ArrayList<>();
+      for (final UUID uuid : members) {
+        server.getPlayer(uuid).ifPresent(out::add);
+      }
+      return List.copyOf(out);
+    }
+
+    @Override
+    public boolean isMember(final Player player) {
+      return members.contains(player.getUniqueId());
+    }
+
+    @Override
+    public boolean isActive() {
+      return active;
+    }
+
+    @Override
+    public void sendMessage(final Component message) {
+      getMembers().forEach(p -> p.sendMessage(message));
+    }
+
+    Parties outer() {
+      return Parties.this;
     }
   }
 
@@ -95,6 +140,87 @@ public final class Parties {
     return Optional.ofNullable(byPlayer.get(player.getUniqueId()));
   }
 
+  @Override
+  public Optional<net.paperstream.paperproxy.api.party.Party> getParty(final Player player) {
+    return Optional.ofNullable(byPlayer.get(player.getUniqueId()));
+  }
+
+  @Override
+  public Collection<net.paperstream.paperproxy.api.party.Party> getParties() {
+    return List.copyOf(new java.util.LinkedHashSet<>(byPlayer.values()));
+  }
+
+  @Override
+  public synchronized Party create(final Player leader) {
+    if (byPlayer.containsKey(leader.getUniqueId())) {
+      throw new IllegalStateException(leader.getUsername() + " is already in a party");
+    }
+    final Party party = new Party(leader.getUniqueId());
+    byPlayer.put(leader.getUniqueId(), party);
+    server.getEventManager().fireAndForget(new PartyJoinEvent(party, leader));
+    return party;
+  }
+
+  @Override
+  public synchronized boolean addMember(final net.paperstream.paperproxy.api.party.Party party,
+                                        final Player player) {
+    final Party own = own(party);
+    if (!own.active || byPlayer.containsKey(player.getUniqueId())
+        || own.members.size() >= server.getPaperProxyConfig().values().party().maxSize()) {
+      return false;
+    }
+    own.members.add(player.getUniqueId());
+    byPlayer.put(player.getUniqueId(), own);
+    invites.remove(player.getUniqueId());
+    own.sendMessage(Component.translatable("paperproxy.party.joined",
+        Argument.string("player", player.getUsername())));
+    server.getEventManager().fireAndForget(new PartyJoinEvent(own, player));
+    // Bring the new member to the leader.
+    server.getPlayer(own.leader()).flatMap(Player::getCurrentServer)
+        .ifPresent(target -> follow(own, player, target.getServer()));
+    return true;
+  }
+
+  @Override
+  public boolean removeMember(final Player player) {
+    return remove(player, PartyLeaveEvent.Reason.LEFT);
+  }
+
+  @Override
+  public synchronized boolean setLeader(final net.paperstream.paperproxy.api.party.Party party,
+                                        final Player player) {
+    final Party own = own(party);
+    if (!own.members.remove(player.getUniqueId())) {
+      return false;
+    }
+    own.members.add(0, player.getUniqueId());
+    return true;
+  }
+
+  @Override
+  public synchronized void disband(final net.paperstream.paperproxy.api.party.Party party) {
+    final Party own = own(party);
+    if (!own.active) {
+      return;
+    }
+    own.sendMessage(Component.translatable("paperproxy.party.disbanded"));
+    final List<Player> members = own.getMembers();
+    own.members.forEach(byPlayer::remove);
+    own.members.clear();
+    own.active = false;
+    for (final Player member : members) {
+      server.getEventManager().fireAndForget(new PartyLeaveEvent(own, member,
+          PartyLeaveEvent.Reason.DISBANDED));
+    }
+  }
+
+  private Party own(final net.paperstream.paperproxy.api.party.Party party) {
+    if (!(party instanceof Party own) || own.outer() != this) {
+      throw new IllegalArgumentException("Not a PaperProxy party");
+    }
+    return own;
+  }
+
   /**
    * Invites a player, creating a party for the inviter if needed.
    *
@@ -118,8 +244,7 @@ public final class Parties {
       return "paperproxy.party.full";
     }
     if (party == null) {
-      party = new Party(from.getUniqueId());
-      byPlayer.put(from.getUniqueId(), party);
+      party = create(from);
     }
     invites.computeIfAbsent(to.getUniqueId(), k -> new ConcurrentHashMap<>())
         .put(from.getUniqueId(), new Invite(party, System.currentTimeMillis() + INVITE_MILLIS));
@@ -133,14 +258,13 @@ public final class Parties {
    *
    * @param player the invited player
    * @param leader the inviter, or null for the newest invite
-   * @return a message key describing the result
+   * @return a message key describing the result, empty on success
    */
   public synchronized String accept(final Player player, final @Nullable Player leader) {
     if (byPlayer.containsKey(player.getUniqueId())) {
       return "paperproxy.party.already-in-party";
     }
     final Map<UUID, Invite> mine = invites.getOrDefault(player.getUniqueId(), Map.of());
-    final long now = System.currentTimeMillis();
     Invite invite = null;
     if (leader != null) {
       invite = mine.get(leader.getUniqueId());
@@ -151,43 +275,34 @@ public final class Parties {
         }
       }
     }
-    if (invite == null || invite.expires() < now
-        || byPlayer.get(invite.party().leader()) != invite.party()) {
+    if (invite == null || invite.expires() < System.currentTimeMillis()
+        || !invite.party().active) {
       return "paperproxy.party.no-invite";
     }
-    final int max = server.getPaperProxyConfig().values().party().maxSize();
-    if (invite.party().members.size() >= max) {
-      return "paperproxy.party.full";
-    }
-    invites.remove(player.getUniqueId());
-    invite.party().members.add(player.getUniqueId());
-    byPlayer.put(player.getUniqueId(), invite.party());
-    broadcast(invite.party(), Component.translatable("paperproxy.party.joined",
-        Argument.string("player", player.getUsername())));
-    // Bring the new member to the leader.
-    server.getPlayer(invite.party().leader()).flatMap(Player::getCurrentServer)
-        .ifPresent(target -> send(player, target.getServer()));
-    return "";
+    return addMember(invite.party(), player) ? "" : "paperproxy.party.full";
   }
 
   /**
-   * Leaves the party. A leaving leader hands the party to the next member.
+   * Leaves the party.
    *
    * @param player the player
    * @return true if the player was in a party
    */
-  public synchronized boolean leave(final Player player) {
+  public boolean leave(final Player player) {
+    return remove(player, PartyLeaveEvent.Reason.LEFT);
+  }
+
+  private synchronized boolean remove(final Player player, final PartyLeaveEvent.Reason reason) {
     final Party party = byPlayer.remove(player.getUniqueId());
     if (party == null) {
       return false;
     }
     party.members.remove(player.getUniqueId());
+    server.getEventManager().fireAndForget(new PartyLeaveEvent(party, player, reason));
     if (party.members.size() <= 1) {
-      party.members.forEach(byPlayer::remove);
-      broadcast(party, Component.translatable("paperproxy.party.disbanded"));
-      party.members.clear();
+      disband(party);
     } else {
-      broadcast(party, Component.translatable("paperproxy.party.left",
+      party.sendMessage(Component.translatable("paperproxy.party.left",
           Argument.string("player", player.getUsername())));
     }
     return true;
@@ -198,7 +313,7 @@ public final class Parties {
    *
    * @param leader the leader
    * @param target the member
-   * @return a message key describing the result
+   * @return a message key describing the result, empty on success
    */
   public synchronized String kick(final Player leader, final Player target) {
     final Party party = byPlayer.get(leader.getUniqueId());
@@ -209,7 +324,7 @@ public final class Parties {
       return "paperproxy.party.not-member";
     }
     target.sendMessage(Component.translatable("paperproxy.party.kicked"));
-    leave(target);
+    remove(target, PartyLeaveEvent.Reason.KICKED);
     return "";
   }
 
@@ -219,27 +334,13 @@ public final class Parties {
    * @param leader the leader
    * @return false if the player leads no party
    */
-  public synchronized boolean disband(final Player leader) {
+  public synchronized boolean disbandAsLeader(final Player leader) {
     final Party party = byPlayer.get(leader.getUniqueId());
     if (party == null || !party.leader().equals(leader.getUniqueId())) {
       return false;
     }
-    broadcast(party, Component.translatable("paperproxy.party.disbanded"));
-    party.members.forEach(byPlayer::remove);
-    party.members.clear();
+    disband(party);
     return true;
-  }
-
-  /**
-   * Sends a message to every online member.
-   *
-   * @param party the party
-   * @param message the message
-   */
-  public void broadcast(final Party party, final Component message) {
-    for (final UUID id : party.members()) {
-      server.getPlayer(id).ifPresent(p -> p.sendMessage(message));
-    }
   }
 
   /**
@@ -254,22 +355,27 @@ public final class Parties {
         || !server.getPaperProxyConfig().values().party().follow()) {
       return;
     }
-    final RegisteredServer target = event.getServer();
-    for (final UUID id : party.members()) {
-      if (!id.equals(party.leader())) {
-        server.getPlayer(id).ifPresent(member -> send(member, target));
+    for (final Player member : party.getMembers()) {
+      if (!member.getUniqueId().equals(party.leader())) {
+        follow(party, member, event.getServer());
       }
     }
   }
 
-  private void send(final Player member, final RegisteredServer target) {
+  private void follow(final Party party, final Player member, final RegisteredServer target) {
     final boolean there = member.getCurrentServer()
         .map(current -> current.getServer().equals(target)).orElse(false);
-    if (!there) {
-      member.sendMessage(Component.translatable("paperproxy.party.following",
-          Argument.string("server", target.getServerInfo().getName())));
-      member.createConnectionRequest(target).fireAndForget();
+    if (there) {
+      return;
     }
+    server.getEventManager().fire(new PartyFollowEvent(party, member, target))
+        .thenAccept(event -> {
+          if (!event.isCancelled()) {
+            member.sendMessage(Component.translatable("paperproxy.party.following",
+                Argument.string("server", target.getServerInfo().getName())));
+            member.createConnectionRequest(target).fireAndForget();
+          }
+        });
   }
 
   /**
@@ -280,7 +386,7 @@ public final class Parties {
   @Subscribe
   public void onDisconnect(final DisconnectEvent event) {
     invites.remove(event.getPlayer().getUniqueId());
-    leave(event.getPlayer());
+    remove(event.getPlayer(), PartyLeaveEvent.Reason.DISCONNECTED);
   }
 
   /**
@@ -289,11 +395,7 @@ public final class Parties {
    * @param party the party
    * @return the names, leader first
    */
-  public Set<String> names(final Party party) {
-    final Set<String> out = new java.util.LinkedHashSet<>();
-    for (final UUID id : party.members()) {
-      server.getPlayer(id).ifPresent(p -> out.add(p.getUsername()));
-    }
-    return out;
+  public List<String> names(final Party party) {
+    return party.getMembers().stream().map(Player::getUsername).toList();
   }
 }

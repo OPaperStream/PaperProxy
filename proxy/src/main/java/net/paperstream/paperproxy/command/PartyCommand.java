@@ -87,7 +87,7 @@ public final class PartyCommand {
                 .executes(ctx -> withTarget(server, ctx, target ->
                     reply(ctx, parties.kick(player(ctx), target), target.getUsername())))))
         .then(BrigadierCommand.literalArgumentBuilder("disband").executes(ctx -> {
-          if (!parties.disband(player(ctx))) {
+          if (!parties.disbandAsLeader(player(ctx))) {
             reply(ctx, "paperproxy.party.not-leader", "");
           }
           return Command.SINGLE_SUCCESS;
@@ -121,7 +121,7 @@ public final class PartyCommand {
       reply(ctx, "paperproxy.party.not-in-party", "");
       return 0;
     }
-    parties.broadcast(mine.get(), Component.translatable("paperproxy.party.chat",
+    mine.get().sendMessage(Component.translatable("paperproxy.party.chat",
         Argument.string("player", player.getUsername()),
         Argument.string("message", StringArgumentType.getString(ctx, "message"))));
     return Command.SINGLE_SUCCESS;

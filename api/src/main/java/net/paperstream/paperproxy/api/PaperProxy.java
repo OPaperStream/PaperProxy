@@ -10,6 +10,7 @@ package net.paperstream.paperproxy.api;
 import com.velocitypowered.api.proxy.Player;
 import java.util.concurrent.CompletableFuture;
 import net.kyori.adventure.text.Component;
+import net.paperstream.paperproxy.api.party.PartyManager;
 
 /**
  * The PaperProxy extras for plugins. Everything else is the normal Velocity API.
@@ -20,6 +21,7 @@ import net.kyori.adventure.text.Component;
  * pp.getMessage("myplugin.welcome", "player", name);
  * pp.isOnline("survival");
  * pp.async(() -> database.save(player));
+ * pp.getParties().getParty(player);
  * }</pre>
  */
 public interface PaperProxy {
@@ -92,4 +94,11 @@ public interface PaperProxy {
    * @return completes when the work is done
    */
   CompletableFuture<Void> async(Runnable task);
+
+  /**
+   * Returns the parties.
+   *
+   * @return the party manager
+   */
+  PartyManager getParties();
 }

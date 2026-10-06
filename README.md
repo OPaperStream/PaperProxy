@@ -167,9 +167,17 @@ pp.getClientVersion(player);                  // "1.21.4"
 pp.getMessage("myplugin.welcome", "player", name);
 pp.isOnline("survival");
 pp.async(() -> database.save(player));
+
+// Parties
+PartyManager parties = pp.getParties();
+Party party = parties.create(leader);
+parties.addMember(party, player);
+parties.getParty(player).ifPresent(p -> p.sendMessage(text));
 ```
 
-Events: `BackendHealthChangeEvent`, `ClientVersionDeniedEvent`, `PluginRuntimeChangeEvent`.
+Events: `BackendHealthChangeEvent`, `ClientVersionDeniedEvent`, `PluginRuntimeChangeEvent`,
+`PartyJoinEvent`, `PartyLeaveEvent` (with the reason) and `PartyFollowEvent`, which can be
+cancelled to keep a member on their server, for example during a minigame round.
 Everything else is the normal Velocity API.
 
 ## Building
