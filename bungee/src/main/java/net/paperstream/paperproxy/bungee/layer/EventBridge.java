@@ -19,6 +19,7 @@ package net.paperstream.paperproxy.bungee.layer;
 
 import com.velocitypowered.api.event.Continuation;
 import com.velocitypowered.api.event.EventTask;
+import com.velocitypowered.api.event.PostOrder;
 import com.velocitypowered.api.event.ResultedEvent;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.command.CommandExecuteEvent;
@@ -27,6 +28,7 @@ import com.velocitypowered.api.event.connection.DisconnectEvent;
 import com.velocitypowered.api.event.connection.LoginEvent;
 import com.velocitypowered.api.event.connection.PostLoginEvent;
 import com.velocitypowered.api.event.connection.PreLoginEvent;
+import com.velocitypowered.api.event.permission.PermissionsSetupEvent;
 import com.velocitypowered.api.event.player.CookieReceiveEvent;
 import com.velocitypowered.api.event.player.KickedFromServerEvent;
 import com.velocitypowered.api.event.player.PlayerChatEvent;
@@ -35,6 +37,8 @@ import com.velocitypowered.api.event.player.PlayerSettingsChangedEvent;
 import com.velocitypowered.api.event.player.ServerPostConnectEvent;
 import com.velocitypowered.api.event.player.ServerPreConnectEvent;
 import com.velocitypowered.api.event.proxy.ProxyPingEvent;
+import com.velocitypowered.api.permission.PermissionFunction;
+import com.velocitypowered.api.permission.Tristate;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ServerConnection;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
@@ -49,6 +53,7 @@ import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.config.ServerInfo;
 import net.md_5.bungee.api.connection.Connection;
 import net.md_5.bungee.api.event.ChatEvent;
+import net.md_5.bungee.api.event.PermissionCheckEvent;
 import net.md_5.bungee.api.event.PlayerDisconnectEvent;
 import net.md_5.bungee.api.event.PlayerHandshakeEvent;
 import net.md_5.bungee.api.event.ServerConnectEvent;
@@ -79,6 +84,36 @@ public final class EventBridge {
 
   EventBridge(final BungeeLayer layer) {
     this.layer = layer;
+  }
+
+  /** Set while a BungeeCord permission check asks Velocity, so the two never loop. */
+  static final ThreadLocal<Boolean> ASKING_VELOCITY = ThreadLocal.withInitial(() -> false);
+
+  // ------------------------------------------------------------ permissions
+
+  /**
+   * Lets BungeeCord permission plugins (LuckPerms-Bungee and others) answer Velocity's
+   * permission checks too, so proxy commands like /send or /pp servers follow them.
+   *
+   * @param event the event
+   */
+  @Subscribe(order = PostOrder.LATE)
+  public void onPermissionsSetup(final PermissionsSetupEvent event) {
+    if (!(event.getSubject() instanceof Player player)) {
+      return;
+    }
+    final PermissionFunction velocity = event.createFunction(player);
+    event.setProvider(subject -> permission -> {
+      final Tristate original = velocity.getPermissionValue(permission);
+      if (ASKING_VELOCITY.get()) {
+        return original;
+      }
+      final BungeePlayer sender = layer.player(player);
+      final boolean base = original == Tristate.TRUE;
+      final boolean result = layer.pluginManager().callEvent(
+          new PermissionCheckEvent(sender, permission, base)).hasPermission();
+      return result == base ? original : Tristate.fromBoolean(result);
+    });
   }
 
   // ------------------------------------------------------------------ login

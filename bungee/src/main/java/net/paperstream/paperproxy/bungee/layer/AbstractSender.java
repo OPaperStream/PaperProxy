@@ -93,7 +93,14 @@ abstract class AbstractSender implements CommandSender {
   @Override
   public boolean hasPermission(final String permission) {
     final String lower = permission.toLowerCase(Locale.ROOT);
-    final boolean base = source().hasPermission(permission) || permissions.contains(lower);
+    final boolean fromVelocity;
+    EventBridge.ASKING_VELOCITY.set(true);
+    try {
+      fromVelocity = source().hasPermission(permission);
+    } finally {
+      EventBridge.ASKING_VELOCITY.set(false);
+    }
+    final boolean base = fromVelocity || permissions.contains(lower);
     return layer.pluginManager().callEvent(new PermissionCheckEvent(this, permission, base))
         .hasPermission();
   }
