@@ -98,6 +98,30 @@ class UpdateTest {
   }
 
   @Test
+  void verifierAcceptsAnyTrustedKeyDuringRotation() throws Exception {
+    final KeyPair oldKey = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+    final KeyPair newKey = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+    final KeyPair stranger = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+    final ReleaseVerifier verifier = new ReleaseVerifier(
+        Base64.getEncoder().encodeToString(oldKey.getPublic().getEncoded()),
+        Base64.getEncoder().encodeToString(newKey.getPublic().getEncoded()));
+    final byte[] jar = "jar-bytes".getBytes(StandardCharsets.UTF_8);
+    final String sha = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-512").digest(jar));
+
+    assertNull(verifier.verify(jar, sha, sign(oldKey, jar)));
+    assertNull(verifier.verify(jar, sha, sign(newKey, jar)));
+    assertEquals("invalid signature", verifier.verify(jar, sha, sign(stranger, jar)));
+    assertEquals("invalid signature", verifier.verify(jar, sha, "AAAA"));
+  }
+
+  private static String sign(final KeyPair pair, final byte[] data) throws Exception {
+    final Signature signer = Signature.getInstance("Ed25519");
+    signer.initSign(pair.getPrivate());
+    signer.update(data);
+    return Base64.getEncoder().encodeToString(signer.sign());
+  }
+
+  @Test
   void builtInKeyLoads() {
     assertNotNull(new ReleaseVerifier());
   }

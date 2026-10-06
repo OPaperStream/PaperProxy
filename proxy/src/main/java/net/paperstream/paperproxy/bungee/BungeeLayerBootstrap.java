@@ -121,8 +121,17 @@ public final class BungeeLayerBootstrap {
   }
 
   private static Path extractLayer() throws IOException {
-    final Path directory = Path.of(".paperproxy");
-    Files.createDirectories(directory);
+    final Path directory = Path.of(".paperproxy").toAbsolutePath();
+    try {
+      Files.createDirectories(directory);
+    } catch (final IOException e) {
+      throw new IOException("Cannot create " + directory + " (" + e + "). The proxy needs write "
+          + "access to its own folder to unpack the BungeeCord layer.", e);
+    }
+    if (!Files.isWritable(directory)) {
+      throw new IOException(directory + " is not writable. The proxy needs write access to its "
+          + "own folder to unpack the BungeeCord layer.");
+    }
     final Path target = directory.resolve("bungee-layer.jar");
     try (InputStream in = BungeeLayerBootstrap.class.getResourceAsStream(LAYER_RESOURCE)) {
       if (in == null) {

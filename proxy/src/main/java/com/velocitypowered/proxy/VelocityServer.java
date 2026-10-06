@@ -229,6 +229,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
   private final Parties parties = new Parties(this);
   private final ProxyStats proxyStats = new ProxyStats();
   private final Limbo limbo = new Limbo(this);
+  private final PaperProxyApi paperProxyApi = new PaperProxyApi(this);
   private volatile boolean listening;
   private final Motd motd = new Motd(Path.of(""));
   private final PluginReloader pluginReloader = new PluginReloader(this);
@@ -530,7 +531,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
       "console", "cm", "configuration"})
   void start() {
     PaperProxyBranding.printBanner(logger, getVersion());
-    PaperProxyProvider.set(new PaperProxyApi(this));
+    PaperProxyProvider.set(paperProxyApi);
     logger.info("Booting up {} {}...", getVersion().getName(), getVersion().getVersion());
     console.setupStreams();
     pluginManager.registerPlugin(this.createVirtualPlugin());
@@ -1007,6 +1008,8 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
         }
 
         eventManager.fire(new ProxyShutdownEvent()).join();
+        // Plugins may start async saves in their shutdown handlers: let them finish.
+        paperProxyApi.shutdown(10);
         antiBot.save();
         metricsEndpoint.stop();
         networkSync.stop();

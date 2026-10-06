@@ -24,8 +24,10 @@ import java.security.MessageDigest;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -38,27 +40,42 @@ public final class ReleaseVerifier {
   /** Ed25519 public key of the PaperProxy release key (X.509, Base64). */
   static final String RELEASE_KEY = "MCowBQYDK2VwAyEA+986KgDkYfb+7MASF4xQE65KPoLyoHnfTqzKeyhpp6o=";
 
-  private final PublicKey key;
+  /**
+   * All keys a release may be signed with. To rotate the release key, ship one version that
+   * trusts the old and the new key (still signed with the old one), then sign with the new key
+   * and drop the old one later. See SECURITY.md.
+   */
+  static final List<String> RELEASE_KEYS = List.of(RELEASE_KEY);
+
+  private final List<PublicKey> keys;
 
   /**
-   * Creates a verifier for the built-in release key.
+   * Creates a verifier for the built-in release keys.
    */
   public ReleaseVerifier() {
-    this(RELEASE_KEY);
+    this(RELEASE_KEYS.toArray(new String[0]));
   }
 
   /**
-   * Creates a verifier for another key, used by tests.
+   * Creates a verifier for other keys, used by tests.
    *
-   * @param base64Key the X.509 encoded Ed25519 public key
+   * @param base64Keys X.509 encoded Ed25519 public keys, a release signed by any of them passes
    */
-  public ReleaseVerifier(final String base64Key) {
+  public ReleaseVerifier(final String... base64Keys) {
+    if (base64Keys.length == 0) {
+      throw new IllegalArgumentException("At least one release key is needed");
+    }
+    final List<PublicKey> parsed = new ArrayList<>();
     try {
-      this.key = KeyFactory.getInstance("Ed25519")
-          .generatePublic(new X509EncodedKeySpec(Base64.getDecoder().decode(base64Key)));
-    } catch (GeneralSecurityException e) {
+      final KeyFactory factory = KeyFactory.getInstance("Ed25519");
+      for (final String base64Key : base64Keys) {
+        parsed.add(factory.generatePublic(
+            new X509EncodedKeySpec(Base64.getDecoder().decode(base64Key))));
+      }
+    } catch (GeneralSecurityException | IllegalArgumentException e) {
       throw new IllegalStateException("Invalid release key", e);
     }
+    this.keys = List.copyOf(parsed);
   }
 
   /**
@@ -81,16 +98,24 @@ public final class ReleaseVerifier {
         actual.getBytes(StandardCharsets.US_ASCII))) {
       return "checksum mismatch";
     }
+    final byte[] signed;
     try {
-      final Signature signature = Signature.getInstance("Ed25519");
-      signature.initVerify(key);
-      signature.update(jar);
-      if (!signature.verify(Base64.getDecoder().decode(signatureFile.trim()))) {
-        return "invalid signature";
-      }
-    } catch (GeneralSecurityException | IllegalArgumentException e) {
+      signed = Base64.getDecoder().decode(signatureFile.trim());
+    } catch (IllegalArgumentException e) {
       return "invalid signature (" + e.getMessage() + ")";
     }
-    return null;
+    for (final PublicKey key : keys) {
+      try {
+        final Signature signature = Signature.getInstance("Ed25519");
+        signature.initVerify(key);
+        signature.update(jar);
+        if (signature.verify(signed)) {
+          return null;
+        }
+      } catch (GeneralSecurityException e) {
+        // Try the next key; a malformed signature fails for all of them.
+      }
+    }
+    return "invalid signature";
   }
 }

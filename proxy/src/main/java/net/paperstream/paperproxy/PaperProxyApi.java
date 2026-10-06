@@ -20,14 +20,17 @@ package net.paperstream.paperproxy;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.proxy.VelocityServer;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.ComponentLike;
 import net.kyori.adventure.text.minimessage.translation.Argument;
 import net.paperstream.paperproxy.api.PaperProxy;
 import net.paperstream.paperproxy.api.party.PartyManager;
+import org.apache.logging.log4j.LogManager;
 
 /**
  * Implements the public {@link PaperProxy} API.
@@ -47,6 +50,24 @@ public final class PaperProxyApi implements PaperProxy {
     this.server = server;
   }
 
+  /**
+   * Waits for running {@link #async(Runnable)} tasks when the proxy stops, so plugins that save
+   * data on shutdown do not lose it.
+   *
+   * @param seconds how long to wait at most
+   */
+  public void shutdown(final int seconds) {
+    virtualThreads.shutdown();
+    try {
+      if (!virtualThreads.awaitTermination(seconds, TimeUnit.SECONDS)) {
+        LogManager.getLogger(PaperProxyApi.class).warn(
+            "Async plugin tasks were still running after {} seconds", seconds);
+      }
+    } catch (final InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
+  }
+
   @Override
   public String getClientVersion(final Player player) {
     return player.getProtocolVersion().getMostRecentSupportedVersion();
@@ -54,8 +75,15 @@ public final class PaperProxyApi implements PaperProxy {
 
   @Override
   public Component getMessage(final String key, final String... placeholders) {
+    Objects.requireNonNull(key, "key");
     if (placeholders.length % 2 != 0) {
       throw new IllegalArgumentException("Placeholders must be name/value pairs");
+    }
+    for (int i = 0; i < placeholders.length; i++) {
+      if (placeholders[i] == null) {
+        throw new NullPointerException((i % 2 == 0 ? "Placeholder name" : "Value of placeholder "
+            + placeholders[i - 1]) + " at position " + i + " is null");
+      }
     }
     final ComponentLike[] arguments = new ComponentLike[placeholders.length / 2];
     for (int i = 0; i < placeholders.length; i += 2) {
