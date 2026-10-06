@@ -83,6 +83,7 @@ public final class PaperProxyCommand {
                         StringArgumentType.getString(ctx, "server"), false)))))
         .then(PluginCommand.create(server))
         .then(BrigadierCommand.literalArgumentBuilder("via")
+            .executes(ctx -> usage(ctx, "/paperproxy via install|update"))
             .requires(source -> source.getPermissionValue("paperproxy.command.via")
                 == Tristate.TRUE)
             .then(BrigadierCommand.literalArgumentBuilder("install")
@@ -117,6 +118,7 @@ public final class PaperProxyCommand {
                 == Tristate.TRUE)
             .executes(ctx -> servers(server, ctx)))
         .then(BrigadierCommand.literalArgumentBuilder("restart")
+            .executes(ctx -> usage(ctx, "/paperproxy restart <seconds> [reason] | cancel"))
             .requires(source -> source.getPermissionValue("paperproxy.command.restart")
                 == Tristate.TRUE)
             .then(BrigadierCommand.literalArgumentBuilder("cancel").executes(ctx -> {
@@ -141,9 +143,11 @@ public final class PaperProxyCommand {
                 == Tristate.TRUE)
             .executes(ctx -> network(server, ctx)))
         .then(BrigadierCommand.literalArgumentBuilder("paperguard")
+            .executes(ctx -> usage(ctx, "paperproxy paperguard key <server> | rotate"))
             // Keys are secrets: console only, never shown in game.
             .requires(source -> source instanceof ConsoleCommandSource)
             .then(BrigadierCommand.literalArgumentBuilder("key")
+            .executes(ctx -> usage(ctx, "paperproxy paperguard key <server>"))
                 .then(BrigadierCommand.requiredArgumentBuilder("server",
                         StringArgumentType.word())
                     .suggests((ctx, builder) -> {
@@ -153,6 +157,7 @@ public final class PaperProxyCommand {
                     })
                     .executes(ctx -> paperGuardKey(server, ctx))))
             .then(BrigadierCommand.literalArgumentBuilder("rotate")
+            .executes(ctx -> usage(ctx, "paperproxy paperguard rotate confirm"))
                 .then(BrigadierCommand.literalArgumentBuilder("confirm")
                     .executes(ctx -> paperGuardRotate(server, ctx)))
                 .executes(ctx -> {
@@ -347,6 +352,12 @@ public final class PaperProxyCommand {
     server.getRestartScheduler().schedule(seconds, reason);
     ctx.getSource().sendMessage(Component.translatable("paperproxy.restart.planned",
         Argument.string("seconds", String.valueOf(seconds))));
+    return Command.SINGLE_SUCCESS;
+  }
+
+  private static int usage(final CommandContext<CommandSource> ctx, final String usage) {
+    ctx.getSource().sendMessage(Component.translatable("paperproxy.usage",
+        Argument.string("usage", usage)));
     return Command.SINGLE_SUCCESS;
   }
 }

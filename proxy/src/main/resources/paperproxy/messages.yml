@@ -67,6 +67,7 @@ velocity:
     tab-complete-rate-limit: "You are sending too many tab complete requests too quickly."
 
 paperproxy:
+  usage: "{prefix}<gray>Usage: <white>{usage}"
   command:
     disclaimer: "<red>Not an official Paper project. PaperProxy is not affiliated with PaperMC."
     based-on: "<gray>Based on Velocity {velocity_version}, licensed under the GNU GPL v3."
