@@ -35,7 +35,6 @@ import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.translation.Argument;
 import net.paperstream.paperproxy.PaperProxyBranding;
 import net.paperstream.paperproxy.network.DiscordWebhook;
-import net.paperstream.paperproxy.update.UpdateChecker;
 import net.paperstream.paperproxy.via.ViaInstaller;
 
 /**
@@ -99,15 +98,17 @@ public final class PaperProxyCommand {
               final var release = checker.available();
               if (release == null) {
                 ctx.getSource().sendMessage(Component.translatable("paperproxy.update.none"));
+              } else if (checker.downloaded() != null) {
+                ctx.getSource().sendMessage(Component.translatable(
+                    "paperproxy.update.downloaded"));
               } else {
-                ctx.getSource().sendMessage(Component.translatable("paperproxy.update.available",
-                    Argument.string("version", release.version().text()),
-                    Argument.string("current", server.getVersion().getVersion().split(" ")[0]),
-                    Argument.component("url", UpdateChecker.link(release.url()))));
-                if (checker.downloaded() != null) {
-                  ctx.getSource().sendMessage(Component.translatable(
-                      "paperproxy.update.downloaded"));
-                }
+                final var source = ctx.getSource();
+                source.sendMessage(checker.notice(release));
+                source.sendMessage(Component.translatable("paperproxy.update.installing"));
+                checker.install().thenAccept(problem -> source.sendMessage(problem == null
+                    ? Component.translatable("paperproxy.update.downloaded")
+                    : Component.translatable("paperproxy.update.failed",
+                        Argument.string("reason", problem))));
               }
               return Command.SINGLE_SUCCESS;
             }))

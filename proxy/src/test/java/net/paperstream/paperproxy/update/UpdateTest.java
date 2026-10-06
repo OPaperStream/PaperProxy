@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
@@ -68,10 +69,10 @@ class UpdateTest {
         ]""").getAsJsonArray();
     final UpdateChecker.Release release = UpdateChecker.newest(releases, "release");
     assertNotNull(release);
-    assertEquals("v1.0.1", release.version().text());
+    assertEquals("1.0.1", release.version().text());
     assertEquals("jar", release.jarUrl());
     assertEquals("sig", release.signatureUrl());
-    assertEquals("v1.1.0-BETA", UpdateChecker.newest(releases, "beta").version().text());
+    assertEquals("1.1.0-BETA", UpdateChecker.newest(releases, "beta").version().text());
   }
 
   @Test
@@ -119,6 +120,34 @@ class UpdateTest {
     signer.initSign(pair.getPrivate());
     signer.update(data);
     return Base64.getEncoder().encodeToString(signer.sign());
+  }
+
+  @Test
+  void channelFollowsTheRunningVersion() {
+    assertEquals("alpha", Version.effectiveChannel("auto", Version.parse("1.0.0-ALPHA")));
+    assertEquals("beta", Version.effectiveChannel("auto", Version.parse("1.2.0-BETA")));
+    assertEquals("release", Version.effectiveChannel("auto", Version.parse("1.2.0")));
+    // The old default "release" must not hide pre-releases from pre-release users.
+    assertEquals("alpha", Version.effectiveChannel("release", Version.parse("1.0.0-ALPHA")));
+    assertEquals("release", Version.effectiveChannel("release", Version.parse("2.0.0")));
+    // An explicit choice is kept.
+    assertEquals("beta", Version.effectiveChannel("beta", Version.parse("1.0.0-ALPHA")));
+  }
+
+  @Test
+  void alphaUsersHearAboutTheBetaAndCountWhatTheyMissed() {
+    final JsonArray releases = new JsonArray();
+    for (final String tag : new String[] {"v1.0.0-ALPHA", "v1.1.0-ALPHA", "v1.2.0-BETA"}) {
+      final JsonObject release = new JsonObject();
+      release.addProperty("tag_name", tag);
+      release.addProperty("html_url", "https://example.org/" + tag);
+      release.addProperty("prerelease", true);
+      releases.add(release);
+    }
+    final Version running = Version.parse("1.0.0-ALPHA");
+    final String channel = Version.effectiveChannel("release", running);
+    assertEquals("1.2.0-BETA", UpdateChecker.newest(releases, channel).version().text());
+    assertEquals(2, UpdateChecker.behind(releases, channel, running));
   }
 
   @Test

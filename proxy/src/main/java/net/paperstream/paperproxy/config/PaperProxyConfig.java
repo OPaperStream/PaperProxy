@@ -67,7 +67,7 @@ public final class PaperProxyConfig {
    * @param reloadRequiresConfirm whether reload needs "confirm"
    * @param reloadBlocked plugin ids that are never reloaded
    * @param updateCheck whether updates are checked
-   * @param updateChannel release, beta or alpha
+   * @param updateChannel auto, release, beta or alpha
    * @param autoUpdate whether verified updates are downloaded
    * @param autoUpdateAllowMajor whether major updates are installed automatically
    * @param groups server groups, group name to member names (all lower case)
@@ -105,7 +105,7 @@ public final class PaperProxyConfig {
       return new Values(Map.of(), 10, Map.of(), true, 10, "paperproxy.notify.health", false,
           Set.of(), Set.of(), 5, 500, true,
           Set.of("viaversion", "viabackwards", "viarewind", "luckperms", "geyser", "floodgate"),
-          true, "release", false, false, Map.of(), Queue.defaults(), "",
+          true, "auto", false, false, Map.of(), Queue.defaults(), "",
           List.of("hub", "lobby"), AntiBot.defaults(), Metrics.defaults(), "",
           Sync.defaults(), Set.of(), "", 0, Discord.defaults(), Restart.defaults(),
           Party.defaults(), false, Limbo.defaults());
@@ -407,8 +407,8 @@ public final class PaperProxyConfig {
 
     final String channel = string(config, "updates.channel", d.updateChannel(), errors)
         .toLowerCase(Locale.ROOT);
-    if (!List.of("release", "beta", "alpha").contains(channel)) {
-      errors.add("updates.channel: '" + channel + "' must be release, beta or alpha");
+    if (!List.of("auto", "release", "beta", "alpha").contains(channel)) {
+      errors.add("updates.channel: '" + channel + "' must be auto, release, beta or alpha");
     }
 
     return new Values(Map.copyOf(forwarding),
@@ -427,7 +427,8 @@ public final class PaperProxyConfig {
         config.get("plugin-reload.blocked") == null ? d.reloadBlocked()
             : lowerSet(config.get("plugin-reload.blocked")),
         bool(config, "updates.check", d.updateCheck(), errors),
-        List.of("release", "beta", "alpha").contains(channel) ? channel : d.updateChannel(),
+        List.of("auto", "release", "beta", "alpha").contains(channel) ? channel
+            : d.updateChannel(),
         bool(config, "auto-update.enabled", d.autoUpdate(), errors),
         bool(config, "auto-update.allow-major", d.autoUpdateAllowMajor(), errors),
         Map.copyOf(groups), queue,

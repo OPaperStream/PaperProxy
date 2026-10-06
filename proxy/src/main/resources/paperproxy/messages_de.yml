@@ -170,7 +170,13 @@ paperproxy:
     has-dependents: "{prefix}<red>{plugin} wird von {detail} benötigt. Diese zuerst entladen."
     list: "{prefix}<gray>Velocity-Plugins: <white>{velocity}</white>\n<gray>BungeeCord-Plugins: <white>{bungee}</white>\n<gray>Änderungen zur Laufzeit seit Start: <white>{changes}"
   update:
-    available: "{prefix}<yellow>PaperProxy {version} ist verfügbar</yellow> <gray>(installiert: {current}).</gray> <aqua>{url}"
+    notice: "{prefix}<yellow>PaperProxy <white>{version}</white> ist verfügbar</yellow> <gray>(läuft: {current})</gray>\n{download} {changelog} {install}"
+    notice-behind: "{prefix}<yellow>PaperProxy <white>{version}</white> ist verfügbar</yellow> <gray>(läuft: {current}, {behind} Versionen zurück)</gray>\n{download} {changelog} {install}"
+    button-download: "<green>[Download]"
+    button-changelog: "<aqua>[Changelog]"
+    button-install: "<gold>[Für den nächsten Neustart installieren]"
+    installing: "{prefix}<gray>Update wird heruntergeladen und geprüft..."
+    failed: "{prefix}<red>Das Update wurde nicht installiert: {reason}"
     none: "{prefix}<green>PaperProxy ist aktuell."
     downloaded: "{prefix}<gray>Das Update wurde heruntergeladen und geprüft. Es wird beim nächsten Neustart aktiv."
   via:

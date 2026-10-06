@@ -60,7 +60,8 @@ public record Version(int major, int minor, int patch, int stage, String text)
       default -> 3;
     };
     return new Version(Integer.parseInt(matcher.group(1)), Integer.parseInt(matcher.group(2)),
-        matcher.group(3) == null ? 0 : Integer.parseInt(matcher.group(3)), stage, text.trim());
+        matcher.group(3) == null ? 0 : Integer.parseInt(matcher.group(3)), stage,
+        text.trim().startsWith("v") ? text.trim().substring(1) : text.trim());
   }
 
   /**
@@ -74,6 +75,27 @@ public record Version(int major, int minor, int patch, int stage, String text)
       case "alpha" -> stage >= 1;
       case "beta" -> stage >= 2;
       default -> stage >= 3;
+    };
+  }
+
+  /**
+   * The channel to check on. "auto" follows the running version: an alpha hears about alphas,
+   * betas and releases, a beta about betas and releases. "release" while running a pre-release
+   * also follows the running version, since only finished releases would never reach someone
+   * who is testing pre-releases (this was the old default).
+   *
+   * @param configured the configured channel
+   * @param running the running version
+   * @return release, beta or alpha
+   */
+  public static String effectiveChannel(final String configured, final Version running) {
+    if (!configured.equals("auto") && !configured.equals("release")) {
+      return configured;
+    }
+    return switch (running.stage()) {
+      case 0, 1 -> "alpha";
+      case 2 -> "beta";
+      default -> "release";
     };
   }
 

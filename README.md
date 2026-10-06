@@ -174,8 +174,8 @@ repositories {
 }
 
 dependencies {
-    compileOnly("net.paperstream:paperproxy-api:1.1.1-ALPHA")
-    annotationProcessor("net.paperstream:paperproxy-api:1.1.1-ALPHA")
+    compileOnly("net.paperstream:paperproxy-api:1.2.0-BETA")
+    annotationProcessor("net.paperstream:paperproxy-api:1.2.0-BETA")
 }
 ```
 
@@ -197,7 +197,7 @@ Maven:
   <dependency>
     <groupId>net.paperstream</groupId>
     <artifactId>paperproxy-api</artifactId>
-    <version>1.1.1-ALPHA</version>
+    <version>1.2.0-BETA</version>
     <scope>provided</scope>
   </dependency>
 </dependencies>

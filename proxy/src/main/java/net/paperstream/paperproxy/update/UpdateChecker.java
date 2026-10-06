@@ -23,6 +23,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.connection.PostLoginEvent;
+import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.proxy.VelocityServer;
 import com.velocitypowered.proxy.plugin.virtual.VelocityVirtualPlugin;
 import java.io.IOException;
@@ -37,8 +38,11 @@ import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.minimessage.translation.Argument;
 import net.paperstream.paperproxy.config.PaperProxyConfig;
 import net.paperstream.paperproxy.network.DiscordWebhook;
@@ -72,6 +76,7 @@ public final class UpdateChecker {
   private final ReleaseVerifier verifier;
   private final String api;
   private volatile @Nullable Release available;
+  private volatile int behind;
   private volatile @Nullable Path downloaded;
 
   /**
@@ -131,7 +136,9 @@ public final class UpdateChecker {
       return;
     }
     try {
-      final Release newest = newest(fetch(api), values.updateChannel());
+      final JsonArray releases = fetch(api);
+      final String channel = Version.effectiveChannel(values.updateChannel(), current);
+      final Release newest = newest(releases, channel);
       if (newest == null || newest.version().compareTo(current) <= 0) {
         available = null;
         return;
@@ -139,9 +146,10 @@ public final class UpdateChecker {
       final boolean announce = available == null
           || !available.version().equals(newest.version());
       available = newest;
+      behind = behind(releases, channel, current);
       if (announce) {
-        logger.warn("A new PaperProxy version is available: {} (running {}). {}",
-            newest.version().text(), current.text(), newest.url());
+        banner(newest, current);
+        notifyStaff(newest);
         server.getDiscordWebhook().send(DiscordWebhook.Kind.UPDATE, "PaperProxy "
             + newest.version().text() + " is available (running " + current.text() + "): "
             + newest.url());
@@ -159,6 +167,80 @@ public final class UpdateChecker {
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
     }
+  }
+
+  /**
+   * Counts the releases on a channel that are newer than the running version.
+   *
+   * @param releases the GitHub releases
+   * @param channel the channel
+   * @param current the running version
+   * @return the number of newer releases
+   */
+  static int behind(final JsonArray releases, final String channel, final Version current) {
+    int count = 0;
+    for (final JsonElement element : releases) {
+      final JsonObject release = element.getAsJsonObject();
+      if (release.has("draft") && release.get("draft").getAsBoolean()) {
+        continue;
+      }
+      try {
+        final Version version = Version.parse(release.get("tag_name").getAsString());
+        if (version.allowedOn(channel) && version.compareTo(current) > 0) {
+          count++;
+        }
+      } catch (IllegalArgumentException e) {
+        // Not a version tag.
+      }
+    }
+    return count;
+  }
+
+  private void banner(final Release release, final Version current) {
+    final String line = "*".repeat(64);
+    logger.warn(line);
+    logger.warn("  A new PaperProxy version is available: {}", release.version().text());
+    logger.warn("  You are running {}{}.", current.text(),
+        behind > 1 ? " (" + behind + " versions behind)" : "");
+    logger.warn("  Changelog: {}", release.url());
+    logger.warn("  Update: run \"paperproxy update\" or download the jar from the link above.");
+    logger.warn(line);
+  }
+
+  private void notifyStaff(final Release release) {
+    for (final Player player : server.getAllPlayers()) {
+      if (player.hasPermission(PERMISSION)) {
+        player.sendMessage(notice(release));
+      }
+    }
+  }
+
+  /**
+   * Builds the in-game update notice with buttons.
+   *
+   * @param release the release
+   * @return the message
+   */
+  public Component notice(final Release release) {
+    final String current = server.getVersion().getVersion().split(" ")[0];
+    final String jar = release.jarUrl() != null ? release.jarUrl() : release.url();
+    final Component download = Component.translatable("paperproxy.update.button-download")
+        .clickEvent(ClickEvent.openUrl(jar))
+        .hoverEvent(HoverEvent.showText(Component.text(jar)));
+    final Component changelog = Component.translatable("paperproxy.update.button-changelog")
+        .clickEvent(ClickEvent.openUrl(release.url()))
+        .hoverEvent(HoverEvent.showText(Component.text(release.url())));
+    final Component install = Component.translatable("paperproxy.update.button-install")
+        .clickEvent(ClickEvent.suggestCommand("/paperproxy update"))
+        .hoverEvent(HoverEvent.showText(Component.text("/paperproxy update")));
+    return Component.translatable(behind > 1 ? "paperproxy.update.notice-behind"
+            : "paperproxy.update.notice",
+        Argument.string("version", release.version().text()),
+        Argument.string("current", current),
+        Argument.string("behind", String.valueOf(behind)),
+        Argument.component("download", download),
+        Argument.component("changelog", changelog),
+        Argument.component("install", install));
   }
 
   static @Nullable Release newest(final JsonArray releases, final String channel) {
@@ -216,12 +298,35 @@ public final class UpdateChecker {
     return JsonParser.parseString(response.body()).getAsJsonArray();
   }
 
-  private void download(final Release release) throws IOException, InterruptedException {
+  /**
+   * Downloads and verifies the available release for the next restart, for /pp update.
+   *
+   * @return completes with null on success, otherwise with the reason
+   */
+  public CompletableFuture<@Nullable String> install() {
+    final Release release = available;
+    if (release == null) {
+      return CompletableFuture.completedFuture("no update available");
+    }
+    return CompletableFuture.supplyAsync(() -> {
+      try {
+        return download(release);
+      } catch (IOException e) {
+        return e.getMessage();
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        return "interrupted";
+      }
+    });
+  }
+
+  private @Nullable String download(final Release release)
+      throws IOException, InterruptedException {
     if (release.jarUrl() == null || release.checksumUrl() == null
         || release.signatureUrl() == null) {
       logger.warn("Release {} has no signed jar; not installing it automatically.",
           release.version().text());
-      return;
+      return "the release has no signed jar";
     }
     final byte[] jar = bytes(release.jarUrl());
     final String checksum = new String(bytes(release.checksumUrl()), StandardCharsets.UTF_8);
@@ -230,7 +335,7 @@ public final class UpdateChecker {
     if (problem != null) {
       logger.error("Downloaded PaperProxy {} failed verification ({}); it was deleted and will "
           + "not be installed.", release.version().text(), problem);
-      return;
+      return "verification failed: " + problem;
     }
     final Path directory = Path.of("update");
     Files.createDirectories(directory);
@@ -239,6 +344,7 @@ public final class UpdateChecker {
     downloaded = target;
     logger.warn("PaperProxy {} was downloaded and verified. It becomes active after the next "
         + "restart.", release.version().text());
+    return null;
   }
 
   private byte[] bytes(final String url) throws IOException, InterruptedException {
@@ -297,10 +403,7 @@ public final class UpdateChecker {
   public void onJoin(final PostLoginEvent event) {
     final Release release = available;
     if (release != null && event.getPlayer().hasPermission(PERMISSION)) {
-      event.getPlayer().sendMessage(Component.translatable("paperproxy.update.available",
-          Argument.string("version", release.version().text()),
-          Argument.string("current", server.getVersion().getVersion().split(" ")[0]),
-          Argument.component("url", UpdateChecker.link(release.url()))));
+      event.getPlayer().sendMessage(notice(release));
     }
   }
 }

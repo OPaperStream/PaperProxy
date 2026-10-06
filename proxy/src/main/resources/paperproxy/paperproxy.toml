@@ -169,8 +169,10 @@ blocked = ["viaversion", "viabackwards", "viarewind", "luckperms", "geyser", "fl
 [updates]
 # Check GitHub releases for new PaperProxy versions and announce them.
 check = true
-# "release", "beta" or "alpha".
-channel = "release"
+# "auto" follows the version you run: on an alpha you hear about alphas, betas and
+# releases, on a beta about betas and releases, on a release only about releases.
+# Or "release", "beta" or "alpha".
+channel = "auto"
 
 [auto-update]
 # Download verified updates automatically; they become active on the next restart.
