@@ -3,29 +3,50 @@ plugins {
     `maven-publish`
 }
 
+// PaperProxy publishes its own artifacts to the Codeberg package registry, never to PaperMC.
+// Set CODEBERG_TOKEN (a token with package write access) to publish.
 extensions.configure<PublishingExtension> {
     repositories {
         maven {
-            credentials(PasswordCredentials::class.java)
-
-            name = if (version.toString().endsWith("SNAPSHOT")) "paperSnapshots" else "paper" // "paper" is seemingly not defined
-            val base = "https://artifactory.papermc.io/artifactory"
-            val releasesRepoUrl = "$base/releases/"
-            val snapshotsRepoUrl = "$base/snapshots/"
-            setUrl(if (version.toString().endsWith("SNAPSHOT")) snapshotsRepoUrl else releasesRepoUrl)
+            name = "codeberg"
+            setUrl("https://codeberg.org/api/packages/LucasTHCR/maven")
+            credentials(HttpHeaderCredentials::class.java) {
+                name = "Authorization"
+                value = "token " + (System.getenv("CODEBERG_TOKEN") ?: "")
+            }
+            authentication {
+                create<HttpHeaderAuthentication>("header")
+            }
         }
     }
     publications {
         create<MavenPublication>("maven") {
             from(components["java"])
+            groupId = "net.paperstream"
+            artifactId = "paperproxy-" + project.name.removePrefix("velocity-")
             pom {
-                name.set("Velocity")
-                description.set("The modern, next-generation Minecraft server proxy")
-                url.set("https://papermc.io/software/velocity")
+                name.set("PaperProxy " + project.name.removePrefix("velocity-").replaceFirstChar { it.uppercase() })
+                description.set("API for plugins on PaperProxy, a Velocity fork that also runs BungeeCord plugins. Not affiliated with PaperMC.")
+                url.set("https://github.com/OPaperStream/PaperProxy")
+                licenses {
+                    license {
+                        name.set("MIT License")
+                        url.set("https://opensource.org/licenses/MIT")
+                    }
+                }
+                developers {
+                    developer {
+                        id.set("LucasTHCR")
+                        name.set("LucasTHCR")
+                    }
+                    developer {
+                        name.set("Velocity Contributors")
+                        url.set("https://github.com/PaperMC/Velocity")
+                    }
+                }
                 scm {
-                    url.set("https://github.com/PaperMC/Velocity")
-                    connection.set("scm:git:https://github.com/PaperMC/Velocity.git")
-                    developerConnection.set("scm:git:https://github.com/PaperMC/Velocity.git")
+                    url.set("https://github.com/OPaperStream/PaperProxy")
+                    connection.set("scm:git:https://github.com/OPaperStream/PaperProxy.git")
                 }
             }
         }

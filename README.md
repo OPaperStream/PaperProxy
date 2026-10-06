@@ -161,6 +161,60 @@ Other permissions: `paperproxy.maintenance.bypass`, `paperproxy.notify.health`,
 
 ## API
 
+The API is the normal Velocity API plus the PaperProxy extras, MIT licensed. Plugins that use
+it need Java 25 like current Velocity.
+
+Gradle (Kotlin DSL):
+
+```kotlin
+repositories {
+    mavenCentral()
+    maven("https://repo.papermc.io/repository/maven-public/") // Velocity's Brigadier
+    maven("https://codeberg.org/api/packages/LucasTHCR/maven")
+}
+
+dependencies {
+    compileOnly("net.paperstream:paperproxy-api:1.1.1-ALPHA")
+    annotationProcessor("net.paperstream:paperproxy-api:1.1.1-ALPHA")
+}
+```
+
+Maven:
+
+```xml
+<repositories>
+  <repository>
+    <id>papermc</id>
+    <url>https://repo.papermc.io/repository/maven-public/</url>
+  </repository>
+  <repository>
+    <id>paperproxy</id>
+    <url>https://codeberg.org/api/packages/LucasTHCR/maven</url>
+  </repository>
+</repositories>
+
+<dependencies>
+  <dependency>
+    <groupId>net.paperstream</groupId>
+    <artifactId>paperproxy-api</artifactId>
+    <version>1.1.1-ALPHA</version>
+    <scope>provided</scope>
+  </dependency>
+</dependencies>
+```
+
+To support plain Velocity as well, only touch the PaperProxy classes when they exist:
+
+```java
+boolean paperProxy;
+try {
+  Class.forName("net.paperstream.paperproxy.api.PaperProxy");
+  paperProxy = true;
+} catch (ClassNotFoundException e) {
+  paperProxy = false;
+}
+```
+
 ```java
 PaperProxy pp = PaperProxy.get();
 pp.getClientVersion(player);                  // "1.21.4"
