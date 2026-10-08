@@ -13,8 +13,9 @@ Velocity and Waterfall today.
 [PaperProxy Plugin Checker](https://opaperstream.github.io/PaperProxy/) (runs in your browser,
 nothing is uploaded).
 
-**Status: early development.** Everything below is implemented and tested on
-a test network, but not yet in production use. Expect rough edges.
+**Status: first release.** Everything below is implemented and tested on a test network,
+also with real clients. It is not yet proven on large production networks, so please report
+anything that breaks.
 
 ## Why PaperProxy?
 
@@ -174,8 +175,8 @@ repositories {
 }
 
 dependencies {
-    compileOnly("net.paperstream:paperproxy-api:1.2.0-BETA")
-    annotationProcessor("net.paperstream:paperproxy-api:1.2.0-BETA")
+    compileOnly("net.paperstream:paperproxy-api:1.2.1-RELEASE")
+    annotationProcessor("net.paperstream:paperproxy-api:1.2.1-RELEASE")
 }
 ```
 
@@ -197,7 +198,7 @@ Maven:
   <dependency>
     <groupId>net.paperstream</groupId>
     <artifactId>paperproxy-api</artifactId>
-    <version>1.2.0-BETA</version>
+    <version>1.2.1-RELEASE</version>
     <scope>provided</scope>
   </dependency>
 </dependencies>
