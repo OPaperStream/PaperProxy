@@ -1474,6 +1474,9 @@ public class ConnectedPlayer implements MinecraftConnectionAssociation, Player, 
    * {@link #pauseReadTimeout()}. Idempotent: does nothing if the handler is already present.
    */
   private void resumeReadTimeout() {
+    if (connection == null || connection.getChannel() == null) {
+      return;
+    }
     final var pipeline = connection.getChannel().pipeline();
     if (pipeline.context(Connections.READ_TIMEOUT) == null && pipeline.context(Connections.FRAME_DECODER) != null) {
       pipeline.addAfter(Connections.FRAME_DECODER, Connections.READ_TIMEOUT, new ReadTimeoutHandler(
