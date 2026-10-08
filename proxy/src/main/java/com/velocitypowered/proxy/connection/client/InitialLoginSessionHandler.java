@@ -58,6 +58,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Handles authenticating the player to Mojang's servers.
@@ -210,7 +211,11 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
       String url = String.format(MOJANG_HASJOINED_URL,
           urlFormParameterEscaper().escape(login.getUsername()), serverId);
 
-      if (server.getConfiguration().shouldPreventClientProxyConnections()) {
+      // PaperProxy: Mojang never sees private addresses (LAN, VPN, Kubernetes), so checking
+      // them would refuse every such player. Only public addresses are checked.
+      if (server.getConfiguration().shouldPreventClientProxyConnections()
+          && !isPrivateAddress(((InetSocketAddress) mcConnection.getRemoteAddress())
+              .getAddress())) {
         url += "&ip=" + urlFormParameterEscaper().escape(playerIp);
       }
 
@@ -307,5 +312,28 @@ public class InitialLoginSessionHandler implements MinecraftSessionHandler {
     LOGIN_PACKET_RECEIVED,
     ENCRYPTION_REQUEST_SENT,
     ENCRYPTION_RESPONSE_RECEIVED
+  }
+
+  /**
+   * Tells whether an address can never be seen by Mojang's session servers.
+   *
+   * @param address the client address, may be null for unresolved addresses
+   * @return true for loopback, link-local, site-local, CGNAT and IPv6 unique local addresses
+   */
+  static boolean isPrivateAddress(final java.net.@Nullable InetAddress address) {
+    if (address == null) {
+      return false;
+    }
+    if (address.isLoopbackAddress() || address.isLinkLocalAddress()
+        || address.isSiteLocalAddress() || address.isAnyLocalAddress()) {
+      return true;
+    }
+    final byte[] bytes = address.getAddress();
+    if (bytes.length == 4) {
+      // 100.64.0.0/10, carrier-grade NAT and many VPNs such as Tailscale.
+      return (bytes[0] & 0xFF) == 100 && (bytes[1] & 0xC0) == 64;
+    }
+    // fc00::/7, IPv6 unique local addresses.
+    return (bytes[0] & 0xFE) == 0xFC;
   }
 }
