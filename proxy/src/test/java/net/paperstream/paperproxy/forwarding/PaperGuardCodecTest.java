@@ -75,4 +75,11 @@ class PaperGuardCodecTest {
     }
     assertEquals(3, checked);
   }
+
+  @Test
+  void controlCharactersNeverReachTheSignedHost() {
+    assertEquals("play.example.net1.2.3.4",
+        Forwarding.withoutControlCharacters("play.example.net\n1.2.3.4"));
+    assertEquals("ab", Forwarding.withoutControlCharacters("a\u0000b\u007f"));
+  }
 }

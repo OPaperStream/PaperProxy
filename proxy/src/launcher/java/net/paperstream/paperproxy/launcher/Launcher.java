@@ -21,6 +21,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -77,22 +78,104 @@ public final class Launcher {
       return;
     }
 
+    final Path self = Paths.get(
+        Launcher.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+    // Lets the auto-updater replace this jar instead of the extracted core.
+    System.setProperty("paperproxy.launcherJar", self.toString());
+    installPendingUpdate(self);
+
     final Path libraries = Paths.get(System.getProperty("paperproxy.libraries", "libraries"));
+    cleanUp(libraries);
     final List<URL> urls = new ArrayList<>();
-    urls.add(extractCore(libraries).toUri().toURL());
+    final Path core = extractCore(libraries);
+    removeOldCores(core);
+    urls.add(core.toUri().toURL());
     for (final Path library : downloadLibraries(libraries)) {
       urls.add(library.toUri().toURL());
     }
-
-    // Lets the auto-updater replace this jar instead of the extracted core.
-    final URL self = Launcher.class.getProtectionDomain().getCodeSource().getLocation();
-    System.setProperty("paperproxy.launcherJar", Paths.get(self.toURI()).toString());
 
     final URLClassLoader loader = new URLClassLoader(urls.toArray(new URL[0]),
         ClassLoader.getSystemClassLoader().getParent());
     Thread.currentThread().setContextClassLoader(loader);
     final Method main = loader.loadClass(MAIN).getMethod("main", String[].class);
-    main.invoke(null, (Object) args);
+    try {
+      main.invoke(null, (Object) args);
+    } catch (final InvocationTargetException e) {
+      // Show the proxy's own error, not a reflection wrapper.
+      final Throwable cause = e.getCause() != null ? e.getCause() : e;
+      if (cause instanceof Exception) {
+        throw (Exception) cause;
+      }
+      throw (Error) cause;
+    }
+  }
+
+  /** Jar the resources are read from: this jar, or a verified update waiting to be installed. */
+  private static Path resourceJar;
+
+  /**
+   * Installs an update the auto-updater downloaded and verified. On Windows the running jar is
+   * locked, so the update is started from the update folder until the jar can be replaced.
+   */
+  private static void installPendingUpdate(final Path self) {
+    final Path pending = Paths.get(System.getProperty("paperproxy.updateDir", "update"))
+        .resolve("paperproxy.jar");
+    if (!Files.isRegularFile(pending)) {
+      return;
+    }
+    try {
+      Files.copy(self, self.resolveSibling("paperproxy-old.jar"),
+          StandardCopyOption.REPLACE_EXISTING);
+      Files.copy(pending, self, StandardCopyOption.REPLACE_EXISTING);
+      Files.delete(pending);
+      System.out.println("[PaperProxy] Installed the downloaded update. The previous version is "
+          + "kept as paperproxy-old.jar.");
+      resourceJar = self;
+    } catch (final IOException e) {
+      System.out.println("[PaperProxy] Could not replace " + self.getFileName() + " ("
+          + e.getMessage() + "). Starting the update from " + pending + "; replace the jar by "
+          + "hand when the proxy is stopped.");
+      resourceJar = pending;
+    }
+  }
+
+  /** Removes temporary files left behind when a previous start was killed. */
+  private static void cleanUp(final Path libraries) {
+    if (!Files.isDirectory(libraries)) {
+      return;
+    }
+    try (java.util.stream.Stream<Path> files = Files.walk(libraries)) {
+      files.filter(file -> {
+        final String name = file.getFileName().toString();
+        return name.endsWith(".tmp") && (name.startsWith("core") || name.startsWith("lib"));
+      }).forEach(file -> {
+        try {
+          Files.deleteIfExists(file);
+        } catch (final IOException ignored) {
+          // Best effort.
+        }
+      });
+    } catch (final IOException ignored) {
+      // Best effort.
+    }
+  }
+
+  /** Each update brings a new core jar; older ones are no longer needed. */
+  private static void removeOldCores(final Path current) {
+    try (java.util.stream.Stream<Path> files = Files.list(current.getParent())) {
+      files.filter(file -> !file.equals(current)
+              && file.getFileName().toString().startsWith("paperproxy-core-")
+              && file.getFileName().toString().endsWith(".jar"))
+          .forEach(file -> {
+            try {
+              Files.deleteIfExists(file);
+            } catch (final IOException ignored) {
+              // Still in use or locked: try again next time.
+            }
+          });
+    } catch (final IOException ignored) {
+      // Best effort.
+    }
   }
 
   private static Path extractCore(final Path libraries) throws IOException {
@@ -121,10 +204,23 @@ public final class Launcher {
       }
     }
 
+    // Hashing all libraries on every start is slow; files whose size and modification time did
+    // not change since they were last verified are trusted.
+    final Path cacheFile = libraries.resolve(".verified");
+    final java.util.Map<String, String> verified = readCache(cacheFile);
+    final java.util.Map<String, String> nowVerified = new java.util.TreeMap<>();
     final List<Library> missing = new ArrayList<>();
     for (final Library library : list) {
       final Path file = libraries.resolve(library.path());
-      if (!Files.isRegularFile(file) || !library.sha256.equals(sha256(file))) {
+      if (!Files.isRegularFile(file)) {
+        missing.add(library);
+        continue;
+      }
+      final String stamp = Files.size(file) + ":" + Files.getLastModifiedTime(file).toMillis()
+          + ":" + library.sha256;
+      if (stamp.equals(verified.get(library.path())) || library.sha256.equals(sha256(file))) {
+        nowVerified.put(library.path(), stamp);
+      } else {
         missing.add(library);
       }
     }
@@ -154,19 +250,70 @@ public final class Launcher {
 
     final List<Path> files = new ArrayList<>();
     for (final Library library : list) {
-      files.add(libraries.resolve(library.path()));
+      final Path file = libraries.resolve(library.path());
+      files.add(file);
+      if (!nowVerified.containsKey(library.path())) {
+        nowVerified.put(library.path(), Files.size(file) + ":"
+            + Files.getLastModifiedTime(file).toMillis() + ":" + library.sha256);
+      }
     }
+    writeCache(cacheFile, nowVerified);
     return files;
+  }
+
+  private static java.util.Map<String, String> readCache(final Path file) {
+    final java.util.Map<String, String> out = new java.util.HashMap<>();
+    if (!Files.isRegularFile(file)) {
+      return out;
+    }
+    try {
+      for (final String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
+        final int space = line.indexOf(' ');
+        if (space > 0) {
+          out.put(line.substring(0, space), line.substring(space + 1));
+        }
+      }
+    } catch (final IOException ignored) {
+      // A broken cache only means hashing again.
+    }
+    return out;
+  }
+
+  private static void writeCache(final Path file, final java.util.Map<String, String> entries) {
+    final StringBuilder out = new StringBuilder();
+    for (final java.util.Map.Entry<String, String> entry : entries.entrySet()) {
+      out.append(entry.getKey()).append(' ').append(entry.getValue()).append('\n');
+    }
+    try {
+      Files.createDirectories(file.getParent());
+      final Path temp = Files.createTempFile(file.getParent(), "lib", ".tmp");
+      Files.write(temp, out.toString().getBytes(StandardCharsets.UTF_8));
+      Files.move(temp, file, StandardCopyOption.REPLACE_EXISTING);
+    } catch (final IOException ignored) {
+      // Next start hashes again.
+    }
   }
 
   private static long download(final Library library, final Path target) throws IOException {
     IOException last = null;
     for (final String repository : REPOSITORIES) {
-      final byte[] data;
-      try {
-        data = fetch(repository + library.path());
-      } catch (IOException e) {
-        last = e;
+      byte[] data = null;
+      for (int attempt = 1; attempt <= 3 && data == null; attempt++) {
+        try {
+          data = fetch(repository + library.path());
+        } catch (IOException e) {
+          last = e;
+          if (attempt < 3) {
+            try {
+              Thread.sleep(1000L * attempt);
+            } catch (final InterruptedException interrupted) {
+              Thread.currentThread().interrupt();
+              throw new IOException("Interrupted while downloading " + library.coordinates);
+            }
+          }
+        }
+      }
+      if (data == null) {
         continue;
       }
       if (!library.sha256.equals(sha256(data))) {
@@ -202,6 +349,22 @@ public final class Launcher {
   }
 
   private static InputStream open(final String resource) throws IOException {
+    if (resourceJar != null) {
+      final java.util.zip.ZipFile zip = new java.util.zip.ZipFile(resourceJar.toFile());
+      final java.util.zip.ZipEntry entry = zip.getEntry(resource);
+      if (entry == null) {
+        zip.close();
+        throw new IOException(resource + " is missing from " + resourceJar);
+      }
+      final InputStream raw = zip.getInputStream(entry);
+      return new java.io.FilterInputStream(raw) {
+        @Override
+        public void close() throws IOException {
+          super.close();
+          zip.close();
+        }
+      };
+    }
     final InputStream in = Launcher.class.getClassLoader().getResourceAsStream(resource);
     if (in == null) {
       throw new IOException(resource + " is missing from this PaperProxy jar");

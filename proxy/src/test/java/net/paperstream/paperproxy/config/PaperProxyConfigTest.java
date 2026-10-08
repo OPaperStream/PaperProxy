@@ -103,4 +103,14 @@ class PaperProxyConfigTest {
     assertEquals(30, values.antiBot().attackThreshold());
     assertEquals(9225, values.metrics().port());
   }
+
+  @Test
+  void secretsCanComeFromFiles(@org.junit.jupiter.api.io.TempDir final java.nio.file.Path dir)
+      throws IOException {
+    final java.nio.file.Path file = dir.resolve("redis");
+    java.nio.file.Files.writeString(file, "from-file\nignored\n");
+    assertEquals("from-file", PaperProxyConfig.secret("file:" + file));
+    assertEquals("plain", PaperProxyConfig.secret("plain"));
+    assertEquals("", PaperProxyConfig.secret("${env:PAPERPROXY_SURELY_UNSET_123}"));
+  }
 }

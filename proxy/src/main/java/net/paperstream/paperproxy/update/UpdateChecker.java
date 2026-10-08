@@ -26,20 +26,29 @@ import com.velocitypowered.api.event.connection.PostLoginEvent;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.proxy.VelocityServer;
 import com.velocitypowered.proxy.plugin.virtual.VelocityVirtualPlugin;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.jar.JarInputStream;
+import java.util.jar.Manifest;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
@@ -62,8 +71,15 @@ public final class UpdateChecker {
   private static final Logger logger = LogManager.getLogger(UpdateChecker.class);
   private static final String DEFAULT_API =
       "https://api.github.com/repos/OPaperStream/PaperProxy/releases";
+  /** Where a downloaded update waits; the launcher looks in the same place. */
+  static final Path UPDATE_DIRECTORY = Path.of(System.getProperty("paperproxy.updateDir",
+      "update"));
   private static final String JAR_SIGNATURE = ".sig";
   private static final String JAR_CHECKSUM = ".sha512";
+  /** Release jars are about 2 MB; anything far bigger is not a PaperProxy release. */
+  private static final long MAX_DOWNLOAD_BYTES = 64L * 1024 * 1024;
+  /** After this many failed checks in a row the admin is told. */
+  private static final int WARN_AFTER_FAILURES = 3;
 
   /** A release found on GitHub. */
   public record Release(Version version, String url, @Nullable String jarUrl,
@@ -78,6 +94,10 @@ public final class UpdateChecker {
   private volatile @Nullable Release available;
   private volatile int behind;
   private volatile @Nullable Path downloaded;
+  private final boolean customApi;
+  private int failures;
+  private @Nullable String etag;
+  private @Nullable JsonArray cachedReleases;
 
   /**
    * Creates the checker.
@@ -92,6 +112,8 @@ public final class UpdateChecker {
     this.server = server;
     this.verifier = verifier;
     this.api = api;
+    // Links from a custom API (tests, mirrors) are trusted; GitHub links must stay on GitHub.
+    this.customApi = !DEFAULT_API.equals(api);
   }
 
   /**
@@ -137,8 +159,12 @@ public final class UpdateChecker {
     }
     try {
       final JsonArray releases = fetch(api);
+      if (failures >= WARN_AFTER_FAILURES) {
+        logger.info("Update checks work again.");
+      }
+      failures = 0;
       final String channel = Version.effectiveChannel(values.updateChannel(), current);
-      final Release newest = newest(releases, channel);
+      final Release newest = newest(releases, channel, customApi);
       if (newest == null || newest.version().compareTo(current) <= 0) {
         available = null;
         return;
@@ -150,9 +176,8 @@ public final class UpdateChecker {
       if (announce) {
         banner(newest, current);
         notifyStaff(newest);
-        server.getDiscordWebhook().send(DiscordWebhook.Kind.UPDATE, "PaperProxy "
-            + newest.version().text() + " is available (running " + current.text() + "): "
-            + newest.url());
+        server.getDiscordWebhook().send(DiscordWebhook.Kind.UPDATE, "paperproxy.discord.update",
+            "version", newest.version().text(), "current", current.text(), "url", newest.url());
       }
       if (values.autoUpdate() && downloaded == null) {
         if (newest.version().major() != current.major() && !values.autoUpdateAllowMajor()) {
@@ -163,7 +188,13 @@ public final class UpdateChecker {
         }
       }
     } catch (IOException | RuntimeException e) {
-      logger.debug("Update check failed", e);
+      failures++;
+      if (failures == WARN_AFTER_FAILURES) {
+        logger.warn("Could not check for PaperProxy updates {} times in a row ({}). Updates "
+            + "are not announced until GitHub is reachable again.", failures, e.getMessage());
+      } else {
+        logger.debug("Update check failed", e);
+      }
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
     }
@@ -180,20 +211,37 @@ public final class UpdateChecker {
   static int behind(final JsonArray releases, final String channel, final Version current) {
     int count = 0;
     for (final JsonElement element : releases) {
-      final JsonObject release = element.getAsJsonObject();
-      if (release.has("draft") && release.get("draft").getAsBoolean()) {
-        continue;
-      }
-      try {
-        final Version version = Version.parse(release.get("tag_name").getAsString());
-        if (version.allowedOn(channel) && version.compareTo(current) > 0) {
-          count++;
-        }
-      } catch (IllegalArgumentException e) {
-        // Not a version tag.
+      final Version version = eligible(element.getAsJsonObject(), channel);
+      if (version != null && version.compareTo(current) > 0) {
+        count++;
       }
     }
     return count;
+  }
+
+  /**
+   * The one rule for which releases count on a channel, used for the offer and the counter.
+   *
+   * @param release a GitHub release
+   * @param channel the channel
+   * @return its version, or null if it does not count
+   */
+  static @Nullable Version eligible(final JsonObject release, final String channel) {
+    if (release.has("draft") && release.get("draft").getAsBoolean()) {
+      return null;
+    }
+    final Version version;
+    try {
+      version = Version.parse(release.get("tag_name").getAsString());
+    } catch (IllegalArgumentException | NullPointerException | IllegalStateException e) {
+      return null;
+    }
+    final boolean prerelease = release.has("prerelease")
+        && release.get("prerelease").getAsBoolean();
+    if (!version.allowedOn(channel) || (prerelease && channel.equals("release"))) {
+      return null;
+    }
+    return version;
   }
 
   private void banner(final Release release, final Version current) {
@@ -244,58 +292,88 @@ public final class UpdateChecker {
   }
 
   static @Nullable Release newest(final JsonArray releases, final String channel) {
+    return newest(releases, channel, false);
+  }
+
+  static @Nullable Release newest(final JsonArray releases, final String channel,
+                                  final boolean anyHost) {
     Release best = null;
     for (final JsonElement element : releases) {
       final JsonObject release = element.getAsJsonObject();
-      if (release.has("draft") && release.get("draft").getAsBoolean()) {
+      final Version version = eligible(release, channel);
+      if (version == null || (best != null && version.compareTo(best.version()) <= 0)) {
         continue;
       }
-      final Version version;
-      try {
-        version = Version.parse(release.get("tag_name").getAsString());
-      } catch (IllegalArgumentException e) {
+      final String page = release.has("html_url") ? release.get("html_url").getAsString() : "";
+      if (!trusted(page, anyHost)) {
         continue;
       }
-      final boolean prerelease = release.has("prerelease")
-          && release.get("prerelease").getAsBoolean();
-      if (!version.allowedOn(channel) || (prerelease && channel.equals("release"))) {
-        continue;
-      }
-      if (best == null || version.compareTo(best.version()) > 0) {
-        final Map<String, String> assets = new HashMap<>();
-        if (release.has("assets")) {
-          for (final JsonElement asset : release.getAsJsonArray("assets")) {
-            final JsonObject object = asset.getAsJsonObject();
-            assets.put(object.get("name").getAsString(),
-                object.get("browser_download_url").getAsString());
+      final Map<String, String> assets = new HashMap<>();
+      if (release.has("assets")) {
+        for (final JsonElement asset : release.getAsJsonArray("assets")) {
+          final JsonObject object = asset.getAsJsonObject();
+          final String url = object.get("browser_download_url").getAsString();
+          if (trusted(url, anyHost)) {
+            assets.put(object.get("name").getAsString(), url);
           }
         }
-        String jar = null;
-        for (final String name : assets.keySet()) {
-          if (name.startsWith("paperproxy-") && name.endsWith(".jar")
-              && !name.endsWith("-full.jar")) {
-            jar = name;
-          }
-        }
-        best = new Release(version, release.get("html_url").getAsString(),
-            jar == null ? null : assets.get(jar),
-            jar == null ? null : assets.get(jar + JAR_CHECKSUM),
-            jar == null ? null : assets.get(jar + JAR_SIGNATURE));
       }
+      // Exactly this name, so a release with several jars still installs the right one.
+      final String jar = "paperproxy-" + version.text() + ".jar";
+      final boolean complete = assets.containsKey(jar);
+      best = new Release(version, page,
+          complete ? assets.get(jar) : null,
+          complete ? assets.get(jar + JAR_CHECKSUM) : null,
+          complete ? assets.get(jar + JAR_SIGNATURE) : null);
     }
     return best;
   }
 
+  /**
+   * Only https links to GitHub are shown to staff or downloaded.
+   *
+   * @param url the link
+   * @param anyHost whether a custom update API is configured
+   * @return true if the link may be used
+   */
+  static boolean trusted(final String url, final boolean anyHost) {
+    final URI uri;
+    try {
+      uri = URI.create(url);
+    } catch (IllegalArgumentException e) {
+      return false;
+    }
+    if (anyHost) {
+      return uri.getScheme() != null && uri.getScheme().startsWith("http");
+    }
+    final String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+    return "https".equals(uri.getScheme())
+        && (host.equals("github.com") || host.endsWith(".githubusercontent.com"));
+  }
+
   private JsonArray fetch(final String url) throws IOException, InterruptedException {
-    final HttpResponse<String> response = http.send(HttpRequest.newBuilder(URI.create(url))
-            .header("Accept", "application/vnd.github+json")
-            .header("User-Agent", "PaperProxy-UpdateChecker")
-            .timeout(Duration.ofSeconds(20)).build(),
+    final HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(url))
+        .header("Accept", "application/vnd.github+json")
+        .header("User-Agent", "PaperProxy-UpdateChecker")
+        .timeout(Duration.ofSeconds(20));
+    final String knownTag = etag;
+    final JsonArray cached = cachedReleases;
+    if (knownTag != null && cached != null) {
+      // Unchanged answers do not count against GitHub's rate limit.
+      request.header("If-None-Match", knownTag);
+    }
+    final HttpResponse<String> response = http.send(request.build(),
         HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+    if (response.statusCode() == 304 && cached != null) {
+      return cached;
+    }
     if (response.statusCode() != 200) {
       throw new IOException("GitHub answered " + response.statusCode());
     }
-    return JsonParser.parseString(response.body()).getAsJsonArray();
+    final JsonArray releases = JsonParser.parseString(response.body()).getAsJsonArray();
+    etag = response.headers().firstValue("ETag").orElse(null);
+    cachedReleases = releases;
+    return releases;
   }
 
   /**
@@ -331,16 +409,30 @@ public final class UpdateChecker {
     final byte[] jar = bytes(release.jarUrl());
     final String checksum = new String(bytes(release.checksumUrl()), StandardCharsets.UTF_8);
     final String signature = new String(bytes(release.signatureUrl()), StandardCharsets.UTF_8);
-    final String problem = verifier.verify(jar, checksum, signature);
+    String problem = verifier.verify(jar, checksum, signature);
+    if (problem == null) {
+      problem = checkJarVersion(jar, release.version(), currentVersion());
+    }
     if (problem != null) {
-      logger.error("Downloaded PaperProxy {} failed verification ({}); it was deleted and will "
-          + "not be installed.", release.version().text(), problem);
+      logger.error("Downloaded PaperProxy {} failed verification ({}); it was discarded and "
+          + "will not be installed.", release.version().text(), problem);
       return "verification failed: " + problem;
     }
-    final Path directory = Path.of("update");
+    final Path directory = UPDATE_DIRECTORY;
     Files.createDirectories(directory);
     final Path target = directory.resolve("paperproxy.jar");
-    Files.write(target, jar);
+    // Write next to the target and move it in one step, so a crash never leaves half a jar.
+    final Path temp = Files.createTempFile(directory, "paperproxy", ".tmp");
+    try (FileChannel channel = FileChannel.open(temp, StandardOpenOption.WRITE)) {
+      channel.write(ByteBuffer.wrap(jar));
+      channel.force(true);
+    }
+    try {
+      Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING,
+          StandardCopyOption.ATOMIC_MOVE);
+    } catch (final AtomicMoveNotSupportedException e) {
+      Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
+    }
     downloaded = target;
     logger.warn("PaperProxy {} was downloaded and verified. It becomes active after the next "
         + "restart.", release.version().text());
@@ -348,13 +440,64 @@ public final class UpdateChecker {
   }
 
   private byte[] bytes(final String url) throws IOException, InterruptedException {
-    final HttpResponse<byte[]> response = http.send(HttpRequest.newBuilder(URI.create(url))
+    final HttpResponse<InputStream> response = http.send(HttpRequest.newBuilder(URI.create(url))
         .header("User-Agent", "PaperProxy-UpdateChecker").timeout(Duration.ofMinutes(2)).build(),
-        HttpResponse.BodyHandlers.ofByteArray());
-    if (response.statusCode() != 200) {
-      throw new IOException("Download failed with " + response.statusCode() + ": " + url);
+        HttpResponse.BodyHandlers.ofInputStream());
+    try (InputStream in = response.body()) {
+      if (response.statusCode() != 200) {
+        throw new IOException("Download failed with " + response.statusCode() + ": " + url);
+      }
+      final long announced = response.headers().firstValueAsLong("Content-Length").orElse(-1);
+      if (announced > MAX_DOWNLOAD_BYTES) {
+        throw new IOException("Download is too big (" + announced + " bytes): " + url);
+      }
+      final byte[] data = in.readNBytes((int) MAX_DOWNLOAD_BYTES + 1);
+      if (data.length > MAX_DOWNLOAD_BYTES) {
+        throw new IOException("Download is too big: " + url);
+      }
+      return data;
     }
-    return response.body();
+  }
+
+  private Version currentVersion() {
+    return Version.parse(server.getVersion().getVersion().split(" ")[0]);
+  }
+
+  /**
+   * The signature covers the jar but not the release tag, so an old signed jar could be put
+   * under a new tag. The version inside the jar must match the tag and be newer than what runs.
+   *
+   * @param jar the downloaded jar
+   * @param tag the version of the release tag
+   * @param running the running version
+   * @return null if fine, otherwise the reason
+   */
+  static @Nullable String checkJarVersion(final byte[] jar, final Version tag,
+                                          final Version running) {
+    final String inJar;
+    try (JarInputStream in = new JarInputStream(new ByteArrayInputStream(jar))) {
+      final Manifest manifest = in.getManifest();
+      inJar = manifest == null ? null
+          : manifest.getMainAttributes().getValue("Implementation-Version");
+    } catch (final IOException e) {
+      return "the jar cannot be read";
+    }
+    if (inJar == null) {
+      return "the jar has no version";
+    }
+    final Version version;
+    try {
+      version = Version.parse(inJar);
+    } catch (final IllegalArgumentException e) {
+      return "the jar has no valid version";
+    }
+    if (version.compareTo(tag) != 0 || version.stage() != tag.stage()) {
+      return "the jar is version " + inJar + ", not " + tag.text();
+    }
+    if (version.compareTo(running) <= 0) {
+      return "the jar is not newer than the running version";
+    }
+    return null;
   }
 
   /**
@@ -364,7 +507,9 @@ public final class UpdateChecker {
    */
   public void applyOnShutdown() {
     final Path update = downloaded;
-    if (update == null || !Files.exists(update)) {
+    if (update == null || !Files.exists(update)
+        || System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")) {
+      // On Windows the running jar is locked; the launcher installs the update on the next start.
       return;
     }
     try {

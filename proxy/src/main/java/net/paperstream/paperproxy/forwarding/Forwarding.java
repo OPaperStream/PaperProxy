@@ -156,14 +156,17 @@ public final class Forwarding {
   /**
    * Builds the handshake host field for a PaperGuard login.
    *
-   * @param host the host the player connected to
+   * @param rawHost the host the player connected to
    * @param ip the player's IP
    * @param profile the player's profile
    * @param serverName the target server
    * @return the host field
    */
-  public String paperGuardAddress(final String host, final String ip, final GameProfile profile,
-                                  final String serverName) {
+  public String paperGuardAddress(final String rawHost, final String ip,
+                                  final GameProfile profile, final String serverName) {
+    // The host comes from the client. Control characters (\0 or \n) could shift the field
+    // boundaries of the handshake or the signed payload, so they never reach either.
+    final String host = withoutControlCharacters(rawHost);
     final List<PaperGuardCodec.Property> properties = new ArrayList<>();
     for (final GameProfile.Property property : profile.getProperties()) {
       properties.add(new PaperGuardCodec.Property(property.getName(), property.getValue(),
@@ -185,6 +188,17 @@ public final class Forwarding {
     json.add(Map.of("name", PaperGuardCodec.PROPERTY, "value", value));
     return host + SEPARATOR + ip + SEPARATOR + undashed + SEPARATOR
         + new com.google.gson.Gson().toJson(json);
+  }
+
+  static String withoutControlCharacters(final String text) {
+    final StringBuilder out = new StringBuilder(text.length());
+    for (int i = 0; i < text.length(); i++) {
+      final char c = text.charAt(i);
+      if (c >= 0x20 && c != 0x7F) {
+        out.append(c);
+      }
+    }
+    return out.toString();
   }
 
   private byte[] secret() {

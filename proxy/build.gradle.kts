@@ -23,14 +23,17 @@ tasks {
             attributes["Implementation-Title"] = "PaperProxy"
             attributes["Implementation-Vendor"] = "PaperProxy Contributors"
             attributes["Multi-Release"] = "true"
+            attributes["Velocity-Commit"] = project.property("velocityCommit") as String
         }
     }
 
     processResources {
         val velocityVersion = project.property("velocityVersion") as String
+        val velocityCommit = project.property("velocityCommit") as String
         inputs.property("velocityVersion", velocityVersion)
+        inputs.property("velocityCommit", velocityCommit)
         filesMatching("paperproxy/build.properties") {
-            expand("velocityVersion" to velocityVersion)
+            expand("velocityVersion" to velocityVersion, "velocityCommit" to velocityCommit)
         }
     }
 

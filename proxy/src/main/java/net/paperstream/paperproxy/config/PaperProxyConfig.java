@@ -198,12 +198,16 @@ public final class PaperProxyConfig {
    * @param password the Redis password, empty for none
    * @param database the Redis database number
    * @param networkPlayerCount whether the server list shows all proxies' players
+   * @param username the Redis ACL user, empty for the default user
+   * @param ssl whether to connect with TLS
+   * @param secret shared secret that signs messages between proxies, empty = unsigned
    */
   public record Sync(boolean enabled, String proxyId, String host, int port, String password,
-                     int database, boolean networkPlayerCount) {
+                     int database, boolean networkPlayerCount, String username, boolean ssl,
+                     String secret) {
 
     static Sync defaults() {
-      return new Sync(false, "", "127.0.0.1", 6379, "", 0, true);
+      return new Sync(false, "", "127.0.0.1", 6379, "", 0, true, "", false, "");
     }
   }
 
@@ -399,9 +403,12 @@ public final class PaperProxyConfig {
         string(config, "sync.proxy-id", y.proxyId(), errors).trim(),
         string(config, "sync.redis-host", y.host(), errors).trim(),
         integer(config, "sync.redis-port", y.port(), 1, 65535, errors),
-        string(config, "sync.redis-password", y.password(), errors),
+        secret(string(config, "sync.redis-password", y.password(), errors)),
         integer(config, "sync.redis-database", y.database(), 0, 1000, errors),
-        bool(config, "sync.network-player-count", y.networkPlayerCount(), errors));
+        bool(config, "sync.network-player-count", y.networkPlayerCount(), errors),
+        secret(string(config, "sync.redis-username", y.username(), errors).trim()),
+        bool(config, "sync.redis-ssl", y.ssl(), errors),
+        secret(string(config, "sync.secret", y.secret(), errors).trim()));
     final List<String> hubAliases = config.get("hub-command.aliases") == null
         ? d.hubAliases() : List.copyOf(lowerSet(config.get("hub-command.aliases")));
 
@@ -452,6 +459,29 @@ public final class PaperProxyConfig {
                 : stringList(config.get("limbo.kick-messages"))));
   }
 
+  /**
+   * Lets secrets stay out of the config file: {@code ${env:NAME}} reads an environment variable,
+   * {@code file:path} the first line of a file.
+   *
+   * @param value the configured value
+   * @return the secret
+   */
+  static String secret(final String value) {
+    if (value.startsWith("${env:") && value.endsWith("}")) {
+      final String env = System.getenv(value.substring(6, value.length() - 1));
+      return env == null ? "" : env.trim();
+    }
+    if (value.startsWith("file:")) {
+      try {
+        final List<String> lines = Files.readAllLines(Path.of(value.substring(5)));
+        return lines.isEmpty() ? "" : lines.get(0).trim();
+      } catch (final IOException e) {
+        return "";
+      }
+    }
+    return value;
+  }
+
   private static String requirePing(final Config config, final String def,
                                     final List<String> errors) {
     final String value = string(config, "antibot.require-ping", def, errors)
@@ -465,7 +495,7 @@ public final class PaperProxyConfig {
 
   private static Discord discord(final Config config, final List<String> errors) {
     final Discord d = Discord.defaults();
-    final String url = string(config, "discord.webhook-url", d.webhookUrl(), errors).trim();
+    final String url = secret(string(config, "discord.webhook-url", d.webhookUrl(), errors).trim());
     final boolean web = url.startsWith("https://") || url.startsWith("http://");
     if (!url.isEmpty() && !web) {
       errors.add("discord.webhook-url: must start with https://");

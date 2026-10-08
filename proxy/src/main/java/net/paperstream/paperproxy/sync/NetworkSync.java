@@ -82,6 +82,7 @@ public final class NetworkSync {
   private volatile @Nullable RedisConnection connection;
   private volatile @Nullable RedisConnection subscriber;
   private volatile String proxyId = "";
+  private volatile MessageSigner signer = new MessageSigner("");
   private volatile Map<String, Integer> proxies = Map.of();
   private volatile boolean running;
   private volatile long generation;
@@ -110,6 +111,12 @@ public final class NetworkSync {
       return;
     }
     proxyId = wanted.proxyId().isEmpty() ? defaultId() : wanted.proxyId();
+    signer = new MessageSigner(wanted.secret());
+    if (!signer.enabled()) {
+      logger.warn("sync.secret is empty: messages between proxies are not signed, so anyone who "
+          + "can publish to this Redis can send alerts, kicks and bans. Set the same secret on "
+          + "every proxy.");
+    }
     running = true;
     final long gen = ++generation;
     worker.execute(() -> connectLoop(gen));
@@ -405,8 +412,8 @@ public final class NetworkSync {
     }
     try {
       if (connection == null) {
-        connection = RedisConnection.open(current.host(), current.port(), current.password(),
-            current.database(), 2000);
+        connection = RedisConnection.open(current.host(), current.port(), current.username(),
+            current.password(), current.database(), current.ssl(), 2000);
         logger.info("Connected to Redis for the network sync");
         // After a Redis restart our players are missing: write them again.
         for (final Player player : server.getAllPlayers()) {
@@ -439,7 +446,7 @@ public final class NetworkSync {
         return;
       }
       try (RedisConnection sub = RedisConnection.open(current.host(), current.port(),
-          current.password(), current.database(), 2000)) {
+          current.username(), current.password(), current.database(), current.ssl(), 2000)) {
         subscriber = sub;
         sub.subscribe(this::onMessage, CHANNEL);
       } catch (final IOException e) {
@@ -459,6 +466,12 @@ public final class NetworkSync {
     try {
       final JsonObject json = JsonParser.parseString(message).getAsJsonObject();
       if (proxyId.equals(json.get("from").getAsString())) {
+        return;
+      }
+      final String refused = signer.check(json, System.currentTimeMillis());
+      if (refused != null) {
+        logger.warn("Ignoring a network sync message from '{}': {}. Is sync.secret the same on "
+            + "every proxy?", json.get("from").getAsString(), refused);
         return;
       }
       final String type = json.get("type").getAsString();
@@ -492,6 +505,7 @@ public final class NetworkSync {
     json.addProperty("from", proxyId);
     json.addProperty("type", type);
     json.addProperty("data", data);
+    signer.sign(json, System.currentTimeMillis());
     current.call("PUBLISH", CHANNEL, json.toString());
   }
 

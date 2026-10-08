@@ -41,11 +41,18 @@ public final class ReleaseVerifier {
   static final String RELEASE_KEY = "MCowBQYDK2VwAyEA+986KgDkYfb+7MASF4xQE65KPoLyoHnfTqzKeyhpp6o=";
 
   /**
+   * The next release key, shipped in advance and kept offline. If the current key ever has to be
+   * replaced, releases switch to this one and every proxy already trusts it.
+   */
+  static final String NEXT_RELEASE_KEY =
+      "MCowBQYDK2VwAyEAr15yRrW5oQhWuQ8yNd29b0i7OpEzF6CYVJxPHWjutFQ=";
+
+  /**
    * All keys a release may be signed with. To rotate the release key, ship one version that
    * trusts the old and the new key (still signed with the old one), then sign with the new key
    * and drop the old one later. See SECURITY.md.
    */
-  static final List<String> RELEASE_KEYS = List.of(RELEASE_KEY);
+  static final List<String> RELEASE_KEYS = List.of(RELEASE_KEY, NEXT_RELEASE_KEY);
 
   private final List<PublicKey> keys;
 

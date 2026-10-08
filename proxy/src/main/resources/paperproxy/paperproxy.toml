@@ -98,8 +98,17 @@ enabled = false
 proxy-id = ""
 redis-host = "127.0.0.1"
 redis-port = 6379
+# Redis 6+ ACL user, empty for the default user.
+redis-username = ""
+# Secrets can also be read from the environment ("${env:REDIS_PASSWORD}") or a file
+# ("file:/run/secrets/redis").
 redis-password = ""
 redis-database = 0
+# Connect with TLS (the server certificate and host name are checked).
+redis-ssl = false
+# Shared secret that signs every message between proxies. Use the same long random value on
+# every proxy. Without it, anyone who can publish to this Redis can send alerts, kicks and bans.
+secret = ""
 # Show the players of all proxies in the server list.
 network-player-count = true
 
@@ -126,7 +135,8 @@ kick-messages = ["server closed", "restarting", "server is restarting", "server 
 
 [discord]
 # Post network events to a Discord channel. Create the webhook under
-# channel settings > Integrations > Webhooks. Empty = off.
+# channel settings > Integrations > Webhooks. Empty = off. Can also be "${env:NAME}" or
+# "file:path".
 webhook-url = ""
 username = "PaperProxy"
 # proxy, health, antibot, maintenance, update, restart, punish

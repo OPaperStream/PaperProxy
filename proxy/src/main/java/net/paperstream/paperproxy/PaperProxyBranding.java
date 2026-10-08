@@ -86,7 +86,10 @@ public final class PaperProxyBranding {
       }
       final Properties properties = new Properties();
       properties.load(in);
-      return properties.getProperty("velocity.version", "<unknown>");
+      final String version = properties.getProperty("velocity.version", "<unknown>");
+      final String commit = properties.getProperty("velocity.commit", "");
+      // The exact upstream commit makes a SNAPSHOT base reproducible.
+      return commit.length() >= 7 ? version + " (" + commit.substring(0, 7) + ")" : version;
     } catch (final IOException e) {
       return "<unknown>";
     }

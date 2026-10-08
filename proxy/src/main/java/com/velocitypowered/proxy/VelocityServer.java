@@ -653,7 +653,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
     }
     listening = true;
     networkSync.apply();
-    discordWebhook.send(DiscordWebhook.Kind.PROXY, "Proxy started");
+    discordWebhook.send(DiscordWebhook.Kind.PROXY, "paperproxy.discord.proxy-started");
 
     final Boolean haproxy = this.options.isHaproxy();
     if (haproxy != null) {
@@ -951,7 +951,7 @@ public class VelocityServer implements ProxyServer, ForwardingAudience {
 
     Runnable shutdownProcess = () -> {
       logger.info("Shutting down the proxy...");
-      discordWebhook.send(DiscordWebhook.Kind.PROXY, "Proxy stopping");
+      discordWebhook.send(DiscordWebhook.Kind.PROXY, "paperproxy.discord.proxy-stopping");
 
       // Shutdown the connection manager, this should be
       // done first to refuse new connections

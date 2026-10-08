@@ -35,4 +35,18 @@ class PunishmentsTest {
     assertNull(Punishments.parseDuration("1dx"));
     assertNull(Punishments.parseDuration("0m"));
   }
+
+  @Test
+  void bansFollowTheIdNotTheName() {
+    final java.util.UUID banned = java.util.UUID.fromString("00000000-0000-0000-0000-000000000001");
+    final java.util.UUID newcomer = java.util.UUID.fromString("00000000-0000-0000-0000-000000000002");
+    final Punishments.Entry byUuid = new Punishments.Entry(Punishments.Type.BAN,
+        banned.toString(), "griefer", "", "Console", 0, 0);
+    org.junit.jupiter.api.Assertions.assertTrue(byUuid.matches(banned, "renamed"));
+    org.junit.jupiter.api.Assertions.assertFalse(byUuid.matches(newcomer, "griefer"));
+    // Banned offline by name: matches by name until the UUID is known.
+    final Punishments.Entry byName = new Punishments.Entry(Punishments.Type.BAN, null,
+        "griefer", "", "Console", 0, 0);
+    org.junit.jupiter.api.Assertions.assertTrue(byName.matches(newcomer, "Griefer"));
+  }
 }

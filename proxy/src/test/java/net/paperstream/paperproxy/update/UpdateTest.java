@@ -58,20 +58,20 @@ class UpdateTest {
   void newestReleasePerChannel() {
     final JsonArray releases = JsonParser.parseString("""
         [
-          {"tag_name": "v1.1.0-BETA", "prerelease": true, "html_url": "b",
+          {"tag_name": "v1.1.0-BETA", "prerelease": true, "html_url": "https://github.com/b",
            "assets": []},
-          {"tag_name": "v1.0.1", "prerelease": false, "html_url": "r",
+          {"tag_name": "v1.0.1", "prerelease": false, "html_url": "https://github.com/r",
            "assets": [
-             {"name": "paperproxy-1.0.1.jar", "browser_download_url": "jar"},
-             {"name": "paperproxy-1.0.1.jar.sha512", "browser_download_url": "sha"},
-             {"name": "paperproxy-1.0.1.jar.sig", "browser_download_url": "sig"}]},
-          {"tag_name": "v2.0.0", "draft": true, "html_url": "d", "assets": []}
+             {"name": "paperproxy-1.0.1.jar", "browser_download_url": "https://github.com/jar"},
+             {"name": "paperproxy-1.0.1.jar.sha512", "browser_download_url": "https://github.com/sha"},
+             {"name": "paperproxy-1.0.1.jar.sig", "browser_download_url": "https://github.com/sig"}]},
+          {"tag_name": "v2.0.0", "draft": true, "html_url": "https://github.com/d", "assets": []}
         ]""").getAsJsonArray();
     final UpdateChecker.Release release = UpdateChecker.newest(releases, "release");
     assertNotNull(release);
     assertEquals("1.0.1", release.version().text());
-    assertEquals("jar", release.jarUrl());
-    assertEquals("sig", release.signatureUrl());
+    assertEquals("https://github.com/jar", release.jarUrl());
+    assertEquals("https://github.com/sig", release.signatureUrl());
     assertEquals("1.1.0-BETA", UpdateChecker.newest(releases, "beta").version().text());
   }
 
@@ -140,7 +140,7 @@ class UpdateTest {
     for (final String tag : new String[] {"v1.0.0-ALPHA", "v1.1.0-ALPHA", "v1.2.0-BETA"}) {
       final JsonObject release = new JsonObject();
       release.addProperty("tag_name", tag);
-      release.addProperty("html_url", "https://example.org/" + tag);
+      release.addProperty("html_url", "https://github.com/OPaperStream/PaperProxy/releases/tag/" + tag);
       release.addProperty("prerelease", true);
       releases.add(release);
     }

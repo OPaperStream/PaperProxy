@@ -127,7 +127,7 @@ public final class PaperProxyCommand {
                   ? "paperproxy.restart.cancelled" : "paperproxy.restart.none"));
               if (cancelled) {
                 server.getDiscordWebhook().send(DiscordWebhook.Kind.RESTART,
-                    "Planned proxy restart cancelled");
+                    "paperproxy.discord.restart-cancelled");
               }
               return Command.SINGLE_SUCCESS;
             }))
@@ -238,9 +238,9 @@ public final class PaperProxyCommand {
     }
     try {
       server.getPaperProxyConfig().setMaintenance(target, enabled);
-      server.getDiscordWebhook().send(DiscordWebhook.Kind.MAINTENANCE, (enabled
-          ? ":construction: Maintenance on" : ":white_check_mark: Maintenance off")
-          + (target == null ? "" : " for **" + target + "**"));
+      server.getDiscordWebhook().send(DiscordWebhook.Kind.MAINTENANCE,
+          "paperproxy.discord.maintenance-" + (enabled ? "on" : "off")
+              + (target == null ? "" : "-server"), "server", target == null ? "" : target);
     } catch (final java.io.IOException e) {
       ctx.getSource().sendMessage(Component.text("Unable to save paperproxy.toml: "
           + e.getMessage(), NamedTextColor.RED));

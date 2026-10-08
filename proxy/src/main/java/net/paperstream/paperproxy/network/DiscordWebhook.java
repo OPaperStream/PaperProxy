@@ -25,6 +25,12 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Locale;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.ComponentLike;
+import net.kyori.adventure.text.minimessage.translation.Argument;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import net.kyori.adventure.translation.GlobalTranslator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -68,12 +74,31 @@ public final class DiscordWebhook {
   }
 
   /**
-   * Sends a message if a webhook is set and the event kind is enabled. Never blocks.
+   * Sends a message from messages.yml if a webhook is set and the event kind is enabled.
+   * Never blocks.
+   *
+   * @param kind the event kind
+   * @param key the message key, below paperproxy.discord
+   * @param placeholders name and value pairs
+   */
+  public void send(final Kind kind, final String key, final String... placeholders) {
+    final ComponentLike[] arguments = new ComponentLike[placeholders.length / 2];
+    for (int i = 0; i + 1 < placeholders.length; i += 2) {
+      arguments[i / 2] = Argument.string(placeholders[i], placeholders[i + 1]);
+    }
+    // Texts come from messages.yml like every other message, in the server's language.
+    final Component rendered = GlobalTranslator.render(
+        Component.translatable(key, arguments), Locale.getDefault());
+    sendText(kind, PlainTextComponentSerializer.plainText().serialize(rendered));
+  }
+
+  /**
+   * Sends a ready text.
    *
    * @param kind the event kind
    * @param text the message, Discord markdown allowed
    */
-  public void send(final Kind kind, final String text) {
+  public void sendText(final Kind kind, final String text) {
     final var settings = server.getPaperProxyConfig().values().discord();
     if (settings.webhookUrl().isEmpty() || !settings.events().contains(kind)) {
       return;

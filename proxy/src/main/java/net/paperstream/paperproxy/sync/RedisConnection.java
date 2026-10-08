@@ -28,6 +28,9 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
@@ -47,14 +50,23 @@ final class RedisConnection implements AutoCloseable {
     }
   }
 
+  /** Replies PaperProxy expects are small; bigger ones mean a broken or hostile server. */
+  static final int MAX_ELEMENTS = 10_000;
+  static final int MAX_BULK_BYTES = 1024 * 1024;
+  static final int MAX_LINE_BYTES = 8 * 1024;
+
   private final Socket socket;
   private final InputStream in;
   private final OutputStream out;
 
   private RedisConnection(final Socket socket) throws IOException {
+    this(socket, socket.getInputStream(), socket.getOutputStream());
+  }
+
+  RedisConnection(final Socket socket, final InputStream in, final OutputStream out) {
     this.socket = socket;
-    this.in = new BufferedInputStream(socket.getInputStream());
-    this.out = new BufferedOutputStream(socket.getOutputStream());
+    this.in = new BufferedInputStream(in);
+    this.out = new BufferedOutputStream(out);
   }
 
   /**
@@ -62,23 +74,39 @@ final class RedisConnection implements AutoCloseable {
    *
    * @param host the host
    * @param port the port
+   * @param username the ACL user (Redis 6+), empty for the default user
    * @param password the password, empty for none
    * @param database the database number
+   * @param ssl whether to use TLS, with host name verification
    * @param timeoutMillis connect and read timeout
    * @return the connection
    * @throws IOException if Redis cannot be reached or rejects the login
    */
-  static RedisConnection open(final String host, final int port, final String password,
-                              final int database, final int timeoutMillis) throws IOException {
-    final Socket socket = new Socket();
+  static RedisConnection open(final String host, final int port, final String username,
+                              final String password, final int database, final boolean ssl,
+                              final int timeoutMillis) throws IOException {
+    Socket socket = new Socket();
     try {
       socket.connect(new InetSocketAddress(host, port), timeoutMillis);
       socket.setSoTimeout(timeoutMillis);
       socket.setTcpNoDelay(true);
       socket.setKeepAlive(true);
+      if (ssl) {
+        final SSLSocket tls = (SSLSocket) ((SSLSocketFactory) SSLSocketFactory.getDefault())
+            .createSocket(socket, host, port, true);
+        final SSLParameters parameters = tls.getSSLParameters();
+        parameters.setEndpointIdentificationAlgorithm("HTTPS");
+        tls.setSSLParameters(parameters);
+        tls.startHandshake();
+        socket = tls;
+      }
       final RedisConnection connection = new RedisConnection(socket);
       if (!password.isEmpty()) {
-        connection.call("AUTH", password);
+        if (username.isEmpty()) {
+          connection.call("AUTH", password);
+        } else {
+          connection.call("AUTH", username, password);
+        }
       }
       if (database != 0) {
         connection.call("SELECT", String.valueOf(database));
@@ -170,6 +198,9 @@ final class RedisConnection implements AutoCloseable {
         if (length < 0) {
           return null;
         }
+        if (length > MAX_BULK_BYTES) {
+          throw new IOException("Redis reply too big (" + length + " bytes)");
+        }
         final byte[] data = in.readNBytes(length);
         if (data.length != length) {
           throw new EOFException("Redis closed the connection");
@@ -181,6 +212,9 @@ final class RedisConnection implements AutoCloseable {
         final int count = Integer.parseInt(line);
         if (count < 0) {
           return null;
+        }
+        if (count > MAX_ELEMENTS) {
+          throw new IOException("Redis reply has too many elements (" + count + ")");
         }
         final List<Object> items = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
@@ -205,6 +239,9 @@ final class RedisConnection implements AutoCloseable {
           throw new IOException("Malformed Redis reply");
         }
         return line.toString();
+      }
+      if (line.length() >= MAX_LINE_BYTES) {
+        throw new IOException("Redis reply line too long");
       }
       line.append((char) c);
     }

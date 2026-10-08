@@ -97,8 +97,9 @@ public final class RestartScheduler {
     this.reason = reason;
     this.lastWarned = -1;
     logger.info("Proxy restart in {} seconds", seconds);
-    server.getDiscordWebhook().send(DiscordWebhook.Kind.RESTART,
-        "Proxy restart in " + seconds + " seconds" + (reason.isEmpty() ? "" : ": " + reason));
+    server.getDiscordWebhook().send(DiscordWebhook.Kind.RESTART, reason.isEmpty()
+        ? "paperproxy.discord.restart-planned" : "paperproxy.discord.restart-planned-reason",
+        "seconds", String.valueOf(seconds), "reason", reason);
     ticker = server.getScheduler().buildTask(VelocityVirtualPlugin.INSTANCE, this::tick)
         .repeat(1, TimeUnit.SECONDS).schedule();
   }

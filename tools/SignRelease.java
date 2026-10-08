@@ -25,7 +25,8 @@ public class SignRelease {
       System.exit(1);
     }
     Path jar = Path.of(args[0]);
-    Path keyFile = Path.of(System.getProperty("user.home"), ".config/paperproxy/release-signing-key.pem");
+    Path keyFile = Path.of(System.getProperty("paperproxy.signingKey",
+        System.getProperty("user.home") + "/.config/paperproxy/release-signing-key.pem"));
     String pem = Files.readString(keyFile)
         .replace("-----BEGIN PRIVATE KEY-----", "")
         .replace("-----END PRIVATE KEY-----", "")

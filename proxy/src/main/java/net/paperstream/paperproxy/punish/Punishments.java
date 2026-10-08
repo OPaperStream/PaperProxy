@@ -87,8 +87,13 @@ public final class Punishments {
     }
 
     boolean matches(final @Nullable UUID id, final String player) {
-      return (uuid != null && id != null && uuid.equals(id.toString()))
-          || name.equalsIgnoreCase(player);
+      // With a UUID on both sides only the UUID counts: someone who later takes a freed name
+      // must not inherit an old ban. Entries made offline by name match by name until the
+      // player's UUID is learned on their next login attempt.
+      if (uuid != null && id != null) {
+        return uuid.equals(id.toString());
+      }
+      return name.equalsIgnoreCase(player);
     }
   }
 
@@ -163,11 +168,12 @@ public final class Punishments {
     }
     if (local) {
       server.getNetworkSync().send("punish", GSON.toJson(entry));
-      server.getDiscordWebhook().send(DiscordWebhook.Kind.PUNISH, String.format(
-          "%s **%s** %s by %s%s", entry.type() == Type.BAN ? "Banned" : "Muted", entry.name(),
-          entry.until() == 0 ? "permanently" : "until " + DATE.format(
-              Instant.ofEpochMilli(entry.until())), entry.by(),
-          entry.reason().isEmpty() ? "" : ": " + entry.reason()));
+      server.getDiscordWebhook().send(DiscordWebhook.Kind.PUNISH,
+          "paperproxy.discord." + (entry.type() == Type.BAN ? "ban" : "mute")
+              + (entry.until() == 0 ? "-permanent" : "-temporary"),
+          "player", entry.name(), "by", entry.by(),
+          "until", entry.until() == 0 ? "" : DATE.format(Instant.ofEpochMilli(entry.until())),
+          "reason", entry.reason().isEmpty() ? "-" : entry.reason());
     }
   }
 
